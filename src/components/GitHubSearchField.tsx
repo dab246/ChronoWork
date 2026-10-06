@@ -18,15 +18,9 @@ interface GitHubSearchFieldProps {
  * request, so a slow old response can never overwrite newer results and
  * typing does not burn through the API rate limit.
  */
-export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, onSelect }) => {
-  const { t } = useI18n();
-  const [query, setQuery] = useState('');
+function useGitHubSearch(query: string, settings: UserSettings, onResults: () => void) {
   const [results, setResults] = useState<GitHubItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useDismiss(open, [wrapperRef], () => setOpen(false));
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -39,9 +33,9 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const items = await searchGitHubIssuesAndPRs(trimmed, settings.defaultRepos, settings.githubToken, controller.signal);
-        setResults(items);
-        setOpen(true);
+        const options = { repos: settings.defaultRepos, token: settings.githubToken, signal: controller.signal };
+        setResults(await searchGitHubIssuesAndPRs(trimmed, options));
+        onResults();
       } catch {
         // Aborted by a newer query
       } finally {
@@ -52,14 +46,58 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
       clearTimeout(timer);
       controller.abort();
     };
+    // onResults only opens the dropdown; it must not restart the search
   }, [query, settings.defaultRepos, settings.githubToken]);
+
+  return { results, loading, clear: () => setResults([]) };
+}
+
+const SearchResults: React.FC<{ results: GitHubItem[]; onChoose: (item: GitHubItem) => void }> = ({ results, onChoose }) => {
+  const { t } = useI18n();
+  if (results.length === 0) return <p className="px-3 py-3 text-xs text-neutral-500">{t.dayLog.githubNoResult}</p>;
+  return (
+    <>
+      {results.map((item) => (
+        <button
+          key={`${item.repoName}#${item.number}`}
+          type="button"
+          role="option"
+          aria-selected={false}
+          onClick={() => onChoose(item)}
+          className="w-full px-3 py-2 text-left hover:bg-indigo-50 flex items-start gap-2.5 transition-colors"
+        >
+          <GitPullRequest className={`w-4 h-4 shrink-0 mt-0.5 ${item.isPullRequest ? 'text-purple-600' : 'text-emerald-600'}`} />
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-semibold text-neutral-900 truncate">
+              #{item.number} {item.title}
+            </span>
+            <span className="block text-[10px] text-neutral-500">
+              {item.repoName} · {item.state}
+            </span>
+          </span>
+        </button>
+      ))}
+    </>
+  );
+};
+
+export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, onSelect }) => {
+  const { t } = useI18n();
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const { results, loading, clear } = useGitHubSearch(query, settings, () => setOpen(true));
+
+  useDismiss(open, [wrapperRef], () => setOpen(false));
 
   const choose = (item: GitHubItem) => {
     onSelect(item);
     setQuery('');
-    setResults([]);
+    clear();
     setOpen(false);
   };
+
+  const showResults = open && query.trim().length >= 2 && !loading;
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -75,7 +113,7 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
           placeholder={t.dayLog.githubSearchPlaceholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => results.length > 0 && setOpen(true)}
+          onFocus={() => setOpen(results.length > 0)}
           className="input-field pl-9 pr-9 text-xs bg-neutral-50"
         />
         <GitPullRequest className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -88,7 +126,7 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
       </div>
 
       <AnimatePresence>
-        {open && query.trim().length >= 2 && !loading && (
+        {showResults && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -97,30 +135,7 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
             className="absolute left-0 right-0 top-full mt-1 bg-white border border-neutral-200 rounded-xl elevation-3 z-30 max-h-64 overflow-y-auto py-1"
             role="listbox"
           >
-            {results.length === 0 ? (
-              <p className="px-3 py-3 text-xs text-neutral-500">{t.dayLog.githubNoResult}</p>
-            ) : (
-              results.map((item) => (
-                <button
-                  key={`${item.repoName}#${item.number}`}
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  onClick={() => choose(item)}
-                  className="w-full px-3 py-2 text-left hover:bg-indigo-50 flex items-start gap-2.5 transition-colors"
-                >
-                  <GitPullRequest className={`w-4 h-4 shrink-0 mt-0.5 ${item.isPullRequest ? 'text-purple-600' : 'text-emerald-600'}`} />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-xs font-semibold text-neutral-900 truncate">
-                      #{item.number} {item.title}
-                    </span>
-                    <span className="block text-[10px] text-neutral-500">
-                      {item.repoName} · {item.state}
-                    </span>
-                  </span>
-                </button>
-              ))
-            )}
+            <SearchResults results={results} onChoose={choose} />
           </motion.div>
         )}
       </AnimatePresence>

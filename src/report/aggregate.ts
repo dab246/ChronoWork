@@ -34,51 +34,54 @@ export function normalizeTaskKey(taskName: string): string {
     .toLowerCase();
 }
 
+function toTask(entry: TimeEntry, key: string, rawName: string): AggregatedTask {
+  const completion = entry.completionPct ?? 100;
+  return {
+    key,
+    label: rawName.replace(BRACKETED_URL, '').trim(),
+    url: entry.githubUrl,
+    hours: entryHours(entry),
+    project: entry.project,
+    activitiesDescription: (entry.description || '').trim(),
+    category: entry.category,
+    completionPct: completion,
+    gapPct: 100 - completion,
+    gapReason: entry.gapReason || '',
+    gapSolution: entry.gapSolution || '',
+    remark: entry.remark || entry.notes || '',
+  };
+}
+
+/** Fields where the first non-empty value across the week is kept. */
+const FIRST_NON_EMPTY = ['url', 'activitiesDescription', 'category', 'gapReason', 'gapSolution', 'remark'] as const;
+
+function fillIfEmpty<K extends keyof AggregatedTask>(target: AggregatedTask, next: AggregatedTask, field: K): void {
+  target[field] ||= next[field];
+}
+
+function mergeTask(target: AggregatedTask, next: AggregatedTask): void {
+  target.hours += next.hours;
+  FIRST_NON_EMPTY.forEach((field) => fillIfEmpty(target, next, field));
+  if (next.completionPct < target.completionPct) {
+    target.completionPct = next.completionPct;
+    target.gapPct = next.gapPct;
+  }
+}
+
 /**
  * Aggregates the week's entries by task, summing hours. The lowest completion
  * wins, and the first non-empty description / reason / solution / remark is kept.
  */
 export function aggregateWeeklyTasks(entries: TimeEntry[]): AggregatedTask[] {
   const aggMap = new Map<string, AggregatedTask>();
-
   for (const entry of entries) {
     const rawName = (entry.taskName || '').trim();
     if (!rawName) continue;
     const key = normalizeTaskKey(rawName);
+    const task = toTask(entry, key, rawName);
     const existing = aggMap.get(key);
-    const remark = entry.remark || entry.notes || '';
-
-    if (!existing) {
-      const completion = entry.completionPct ?? 100;
-      aggMap.set(key, {
-        key,
-        label: rawName.replace(BRACKETED_URL, '').trim(),
-        url: entry.githubUrl,
-        hours: entryHours(entry),
-        project: entry.project,
-        activitiesDescription: (entry.description || '').trim(),
-        category: entry.category,
-        completionPct: completion,
-        gapPct: 100 - completion,
-        gapReason: entry.gapReason || '',
-        gapSolution: entry.gapSolution || '',
-        remark,
-      });
-      continue;
-    }
-
-    existing.hours += entryHours(entry);
-    existing.url ||= entry.githubUrl;
-    existing.activitiesDescription ||= (entry.description || '').trim();
-    existing.category ||= entry.category;
-    existing.gapReason ||= entry.gapReason || '';
-    existing.gapSolution ||= entry.gapSolution || '';
-    existing.remark ||= remark;
-    if (entry.completionPct !== undefined && entry.completionPct < existing.completionPct) {
-      existing.completionPct = entry.completionPct;
-      existing.gapPct = 100 - entry.completionPct;
-    }
+    if (existing) mergeTask(existing, task);
+    else aggMap.set(key, task);
   }
-
   return Array.from(aggMap.values()).sort((a, b) => b.hours - a.hours);
 }

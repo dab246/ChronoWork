@@ -106,7 +106,7 @@ export interface UserSettings {
   githubToken?: string; // Kept in this browser only, never exported
   defaultRepos: string[];
   language: Language;
-  reportLanguage?: Language; // Defaults to the UI language
+  reportLanguage?: Language; // Defaults to English
   logoDataUrl?: string; // PNG data URL placed in cell A1 of exported reports
 }
 

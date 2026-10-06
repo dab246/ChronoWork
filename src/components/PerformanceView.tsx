@@ -4,7 +4,7 @@ import { Target, CheckCircle2, Award, Flame, Lightbulb } from 'lucide-react';
 import type { TimeEntry, DayLog, UserSettings } from '../types';
 import { formatDateIso, formatHours, formatShortDate, getDayName, getWeekDays } from '../utils/dateUtils';
 import { entryHours, filterEntriesForDays, getDayTargetHours, getWeeklyTargetHours, sumHours } from '../utils/workdays';
-import { useI18n } from '../i18n';
+import { useI18n, type Translations } from '../i18n';
 import { WeekNavigator } from './WeekNavigator';
 
 interface PerformanceViewProps {
@@ -26,8 +26,126 @@ const Bar: React.FC<{ value: number; className: string }> = ({ value, className 
   </div>
 );
 
+/** Focus level of an entry; entries without one are classified by category. */
+function focusOf(e: TimeEntry): 'deep' | 'normal' | 'other' {
+  if (e.focusLevel) return e.focusLevel === 'deep' || e.focusLevel === 'normal' ? e.focusLevel : 'other';
+  if (DEEP.has(e.category ?? 'development')) return 'deep';
+  return NORMAL.has(e.category ?? '') ? 'normal' : 'other';
+}
+
+/** Hours per focus level, plus meeting hours. */
+function focusHours(entries: TimeEntry[]) {
+  const hours = { deep: 0, normal: 0, other: 0, meeting: 0 };
+  for (const e of entries) {
+    const h = entryHours(e);
+    hours[focusOf(e)] += h;
+    if (e.category === 'meeting') hours.meeting += h;
+  }
+  return hours;
+}
+
+const percentOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
+
+interface InsightInput {
+  targetPct: number;
+  totalHours: number;
+  targetHours: number;
+  deepPct: number;
+  meetingPct: number;
+  meetingHours: number;
+}
+
+function targetInsight(p: Translations['performance'], { targetPct, totalHours, targetHours }: InsightInput): Insight {
+  if (targetPct >= 100) return { type: 'success', text: p.insights.excellent(targetPct, formatHours(totalHours), formatHours(targetHours)) };
+  if (targetPct >= 80) return { type: 'info', text: p.insights.good(targetPct, formatHours(targetHours - totalHours)) };
+  return { type: 'warning', text: p.insights.low(targetPct) };
+}
+
+function deepWorkInsight(p: Translations['performance'], { deepPct, totalHours }: InsightInput): Insight | null {
+  if (deepPct >= 50) return { type: 'success', text: p.insights.deepHigh(deepPct) };
+  if (deepPct < 30 && totalHours > 0) return { type: 'warning', text: p.insights.deepLow(deepPct) };
+  return null;
+}
+
+function meetingInsight(p: Translations['performance'], { meetingPct, meetingHours }: InsightInput): Insight {
+  return meetingPct > 35
+    ? { type: 'warning', text: p.insights.meetingHigh(meetingPct, formatHours(meetingHours)) }
+    : { type: 'info', text: p.insights.meetingOk(meetingPct) };
+}
+
+function buildInsights(p: Translations['performance'], input: InsightInput): Insight[] {
+  return [targetInsight(p, input), deepWorkInsight(p, input), meetingInsight(p, input)].filter((i): i is Insight => i !== null);
+}
+
+const INSIGHT_CLASS: Record<Insight['type'], string> = {
+  success: 'bg-emerald-50/70 border-emerald-200 text-emerald-900',
+  warning: 'bg-amber-50/70 border-amber-200 text-amber-900',
+  info: 'bg-neutral-50 border-neutral-200 text-neutral-800',
+};
+
+interface StatCardProps {
+  label: string;
+  icon: React.ReactNode;
+  value: number;
+  detail: React.ReactNode;
+  children: React.ReactNode;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ label, icon, value, detail, children }) => (
+  <div className="card card-hover p-5 flex flex-col justify-between gap-4">
+    <div>
+      <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+        <span>{label}</span>
+        {icon}
+      </div>
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{value}%</span>
+        <span className="text-xs text-neutral-500">{detail}</span>
+      </div>
+    </div>
+    <div>{children}</div>
+  </div>
+);
+
+function barColor(hours: number, target: number): string {
+  if (hours <= 0) return 'bg-neutral-200/60';
+  return hours >= target ? 'bg-emerald-500' : 'bg-indigo-600';
+}
+
+interface DayColumnProps {
+  day: Date;
+  index: number;
+  hours: number;
+  target: number;
+  maxValue: number;
+}
+
+const DayColumn: React.FC<DayColumnProps> = ({ day, index, hours, target, maxValue }) => {
+  const { lang } = useI18n();
+  return (
+    <div className="flex-1 flex flex-col items-center h-full justify-end group">
+      <div className="text-[11px] font-bold text-neutral-900 mb-1 tabular-nums">{hours > 0 ? `${formatHours(hours)}h` : '–'}</div>
+      <div className="relative w-full max-w-[48px] h-full flex items-end justify-center">
+        {target > 0 && (
+          <div className="absolute w-full border-t-2 border-dashed border-neutral-400 z-10 pointer-events-none" style={{ bottom: `${(target / maxValue) * 100}%` }} />
+        )}
+        <motion.div
+          className={`w-full rounded-t-lg ${barColor(hours, target)}`}
+          initial={{ height: 0 }}
+          animate={{ height: `${Math.max(3, (hours / maxValue) * 100)}%` }}
+          transition={{ duration: 0.5, delay: index * 0.04, ease: [0.2, 0, 0, 1] }}
+        />
+      </div>
+      <div className="text-center mt-2">
+        <div className="text-xs font-semibold text-neutral-800 capitalize">{getDayName(day, lang, true)}</div>
+        <div className="text-[10px] text-neutral-400 tabular-nums">{formatShortDate(day)}</div>
+      </div>
+    </div>
+  );
+};
+
 export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, onChangeDate, entries, dayLogs, settings }) => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const p = t.performance;
   const weekDays = getWeekDays(currentDate);
   const weekEntries = filterEntriesForDays(entries, weekDays);
@@ -36,40 +154,21 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, o
   const targetHours = getWeeklyTargetHours(weekDays, dayLogs, settings);
   const targetPct = targetHours > 0 ? Math.round((totalHours / targetHours) * 100) : 100;
 
-  let deep = 0;
-  let normal = 0;
-  let meeting = 0;
-  for (const e of weekEntries) {
-    const h = entryHours(e);
-    if (e.focusLevel === 'deep' || (!e.focusLevel && DEEP.has(e.category ?? 'development'))) deep += h;
-    else if (e.focusLevel === 'normal' || (!e.focusLevel && NORMAL.has(e.category ?? ''))) normal += h;
-    if (e.category === 'meeting') meeting += h;
-  }
-  const pct = (h: number) => (totalHours > 0 ? Math.round((h / totalHours) * 100) : 0);
-  const deepPct = pct(deep);
-  const normalPct = pct(normal);
+  const hours = focusHours(weekEntries);
+  const deepPct = percentOf(hours.deep, totalHours);
+  const normalPct = percentOf(hours.normal, totalHours);
   const shallowPct = totalHours > 0 ? Math.max(0, 100 - deepPct - normalPct) : 0;
-  const meetingPct = pct(meeting);
+  const meetingPct = percentOf(hours.meeting, totalHours);
 
   const totalTasks = weekEntries.length;
   const completedTasks = weekEntries.filter((e) => e.completionPct === 100).length;
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completionRate = percentOf(completedTasks, totalTasks);
 
   const daily = weekDays.map((d) => sumHours(weekEntries.filter((e) => e.date === formatDateIso(d))));
   const targets = weekDays.map((d) => getDayTargetHours(d, dayLogs, settings));
   const maxValue = Math.max(...daily, ...targets, 1) * 1.15;
 
-  const insights: Insight[] = [];
-  if (targetPct >= 100) insights.push({ type: 'success', text: p.insights.excellent(targetPct, formatHours(totalHours), formatHours(targetHours)) });
-  else if (targetPct >= 80) insights.push({ type: 'info', text: p.insights.good(targetPct, formatHours(targetHours - totalHours)) });
-  else insights.push({ type: 'warning', text: p.insights.low(targetPct) });
-  if (deepPct >= 50) insights.push({ type: 'success', text: p.insights.deepHigh(deepPct) });
-  else if (deepPct < 30 && totalHours > 0) insights.push({ type: 'warning', text: p.insights.deepLow(deepPct) });
-  insights.push(
-    meetingPct > 35
-      ? { type: 'warning', text: p.insights.meetingHigh(meetingPct, formatHours(meeting)) }
-      : { type: 'info', text: p.insights.meetingOk(meetingPct) }
-  );
+  const insights = buildInsights(p, { targetPct, totalHours, targetHours, deepPct, meetingPct, meetingHours: hours.meeting });
 
   return (
     <div className="space-y-6">
@@ -82,70 +181,44 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, o
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>{p.goal}</span>
-              <Target className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{targetPct}%</span>
-              <span className="text-xs text-neutral-500">({formatHours(totalHours)}h / {formatHours(targetHours)}h)</span>
-            </div>
+        <StatCard
+          label={p.goal}
+          icon={<Target className="w-4 h-4 text-indigo-400" />}
+          value={targetPct}
+          detail={`(${formatHours(totalHours)}h / ${formatHours(targetHours)}h)`}
+        >
+          <Bar value={targetPct} className={targetPct >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'} />
+          <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
+            <span>0h</span>
+            <span>{p.standard(formatHours(targetHours))}</span>
           </div>
-          <div>
-            <Bar value={targetPct} className={targetPct >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'} />
-            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
-              <span>0h</span>
-              <span>{p.standard(formatHours(targetHours))}</span>
-            </div>
-          </div>
-        </div>
+        </StatCard>
 
-        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>{p.deepWork}</span>
-              <Flame className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{deepPct}%</span>
-              <span className="text-xs text-neutral-500">{p.deepHours(formatHours(deep))}</span>
-            </div>
+        <StatCard label={p.deepWork} icon={<Flame className="w-4 h-4 text-amber-500" />} value={deepPct} detail={p.deepHours(formatHours(hours.deep))}>
+          <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden flex">
+            <div className="bg-indigo-600 h-full" style={{ width: `${deepPct}%` }} />
+            <div className="bg-indigo-300 h-full" style={{ width: `${normalPct}%` }} />
+            <div className="bg-neutral-300 h-full" style={{ width: `${shallowPct}%` }} />
           </div>
-          <div>
-            <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden flex">
-              <div className="bg-indigo-600 h-full" style={{ width: `${deepPct}%` }} />
-              <div className="bg-indigo-300 h-full" style={{ width: `${normalPct}%` }} />
-              <div className="bg-neutral-300 h-full" style={{ width: `${shallowPct}%` }} />
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5 gap-2">
-              <span className="text-indigo-700 font-medium">{p.deep}: {deepPct}%</span>
-              <span>{p.normal}: {normalPct}%</span>
-              <span>{p.light}: {shallowPct}%</span>
-            </div>
+          <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5 gap-2">
+            <span className="text-indigo-700 font-medium">{p.deep}: {deepPct}%</span>
+            <span>{p.normal}: {normalPct}%</span>
+            <span>{p.light}: {shallowPct}%</span>
           </div>
-        </div>
+        </StatCard>
 
-        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>{p.completion}</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{completionRate}%</span>
-              <span className="text-xs text-neutral-500">({completedTasks} / {totalTasks})</span>
-            </div>
+        <StatCard
+          label={p.completion}
+          icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+          value={completionRate}
+          detail={`(${completedTasks} / ${totalTasks})`}
+        >
+          <Bar value={completionRate} className="bg-emerald-500" />
+          <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
+            <span>{p.inProgress(totalTasks - completedTasks)}</span>
+            <span className="text-emerald-700 font-medium">{p.done(completedTasks)}</span>
           </div>
-          <div>
-            <Bar value={completionRate} className="bg-emerald-500" />
-            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
-              <span>{p.inProgress(totalTasks - completedTasks)}</span>
-              <span className="text-emerald-700 font-medium">{p.done(completedTasks)}</span>
-            </div>
-          </div>
-        </div>
+        </StatCard>
       </div>
 
       <div className="card p-6">
@@ -167,30 +240,9 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, o
         </div>
 
         <div className="h-56 w-full flex items-end justify-between gap-3 pt-6 pb-2 px-2 border-b border-neutral-200">
-          {weekDays.map((day, idx) => {
-            const hours = daily[idx];
-            const target = targets[idx];
-            return (
-              <div key={formatDateIso(day)} className="flex-1 flex flex-col items-center h-full justify-end group">
-                <div className="text-[11px] font-bold text-neutral-900 mb-1 tabular-nums">{hours > 0 ? `${formatHours(hours)}h` : '–'}</div>
-                <div className="relative w-full max-w-[48px] h-full flex items-end justify-center">
-                  {target > 0 && (
-                    <div className="absolute w-full border-t-2 border-dashed border-neutral-400 z-10 pointer-events-none" style={{ bottom: `${(target / maxValue) * 100}%` }} />
-                  )}
-                  <motion.div
-                    className={`w-full rounded-t-lg ${hours >= target && hours > 0 ? 'bg-emerald-500' : hours > 0 ? 'bg-indigo-600' : 'bg-neutral-200/60'}`}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${Math.max(3, (hours / maxValue) * 100)}%` }}
-                    transition={{ duration: 0.5, delay: idx * 0.04, ease: [0.2, 0, 0, 1] }}
-                  />
-                </div>
-                <div className="text-center mt-2">
-                  <div className="text-xs font-semibold text-neutral-800 capitalize">{getDayName(day, lang, true)}</div>
-                  <div className="text-[10px] text-neutral-400 tabular-nums">{formatShortDate(day)}</div>
-                </div>
-              </div>
-            );
-          })}
+          {weekDays.map((day, idx) => (
+            <DayColumn key={formatDateIso(day)} day={day} index={idx} hours={daily[idx]} target={targets[idx]} maxValue={maxValue} />
+          ))}
         </div>
       </div>
 
@@ -206,13 +258,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, o
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.06 }}
-              className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
-                item.type === 'success'
-                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                  : item.type === 'warning'
-                    ? 'bg-amber-50/70 border-amber-200 text-amber-900'
-                    : 'bg-neutral-50 border-neutral-200 text-neutral-800'
-              }`}
+              className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${INSIGHT_CLASS[item.type]}`}
             >
               <Award className="w-4 h-4 shrink-0 mt-0.5 opacity-80" />
               <p className="leading-relaxed">{item.text}</p>

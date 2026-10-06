@@ -8,6 +8,7 @@ import {
   LANGUAGES,
   DAY_STATUSES,
   DayStatusType,
+  FocusLevel,
   TASK_CATEGORIES,
   TaskCategory,
 } from '../types';
@@ -77,33 +78,46 @@ function isLanguage(value: unknown): value is Language {
   return typeof value === 'string' && (LANGUAGES as readonly string[]).includes(value);
 }
 
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return allowed.includes(value as T) ? (value as T) : undefined;
+}
+
+function arrayOr(value: unknown, fallback: unknown[]): unknown[] {
+  return Array.isArray(value) ? value : fallback;
+}
+
+const isOfficeDay = (d: unknown): d is number => Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 5;
+const isRepo = (r: unknown): r is string => typeof r === 'string' && REPO_PATTERN.test(r);
+const FOCUS_LEVELS: readonly FocusLevel[] = ['deep', 'normal', 'shallow'];
+
 export function sanitizeSettings(raw: unknown, base: UserSettings = DEFAULT_SETTINGS): UserSettings {
   if (!isRecord(raw)) return { ...base };
-  const officeDays = Array.isArray(raw.defaultOfficeDays) ? raw.defaultOfficeDays : base.defaultOfficeDays;
-  const repos = Array.isArray(raw.defaultRepos) ? raw.defaultRepos : base.defaultRepos;
+  const text = (key: 'userName' | 'userRole' | 'companyName') => cleanText(raw[key] ?? base[key], 120);
   return {
-    userName: cleanText(raw.userName ?? base.userName, 120),
-    userRole: cleanText(raw.userRole ?? base.userRole, 120),
-    companyName: cleanText(raw.companyName ?? base.companyName, 120),
+    userName: text('userName'),
+    userRole: text('userRole'),
+    companyName: text('companyName'),
     weeklyTargetHours: clampNumber(raw.weeklyTargetHours, 0, 168, base.weeklyTargetHours),
     dailyStandardHours: clampNumber(raw.dailyStandardHours, 0, 24, base.dailyStandardHours),
-    defaultOfficeDays: [...new Set(officeDays.filter((d): d is number => Number.isInteger(d) && d >= 1 && d <= 5))].sort(),
-    defaultRepos: repos.filter((r): r is string => typeof r === 'string' && REPO_PATTERN.test(r)).slice(0, 20),
+    defaultOfficeDays: [...new Set(arrayOr(raw.defaultOfficeDays, base.defaultOfficeDays).filter(isOfficeDay))].sort(),
+    defaultRepos: arrayOr(raw.defaultRepos, base.defaultRepos).filter(isRepo).slice(0, 20),
     githubToken: optionalText(raw.githubToken, 255),
-    language: isLanguage(raw.language) ? raw.language : base.language,
-    reportLanguage: isLanguage(raw.reportLanguage) ? raw.reportLanguage : undefined,
+    language: oneOf(raw.language, LANGUAGES) ?? base.language,
+    reportLanguage: oneOf(raw.reportLanguage, LANGUAGES),
     logoDataUrl: sanitizeLogo(raw.logoDataUrl),
   };
+}
+
+function entryHoursOf(raw: Record<string, unknown>): number {
+  return clampNumber(raw.hours ?? Number(raw.durationMinutes) / 60, 0, 24, 0);
 }
 
 export function sanitizeEntry(raw: unknown): TimeEntry | null {
   if (!isRecord(raw) || !isIsoDate(raw.date)) return null;
   const taskName = cleanText(raw.taskName, 500).trim();
   if (!taskName) return null;
-  const hours = clampNumber(raw.hours ?? Number(raw.durationMinutes) / 60, 0, 24, 0);
+  const hours = entryHoursOf(raw);
   const completionPct = clampNumber(raw.completionPct, 0, 100, 100);
-  const category = TASK_CATEGORIES.includes(raw.category as TaskCategory) ? (raw.category as TaskCategory) : undefined;
-  const githubNumber = Number.isInteger(raw.githubNumber) ? (raw.githubNumber as number) : undefined;
   return {
     id: cleanText(raw.id, 100) || newId('task'),
     date: raw.date,
@@ -111,9 +125,9 @@ export function sanitizeEntry(raw: unknown): TimeEntry | null {
     project: cleanText(raw.project, 120).trim(),
     hours,
     durationMinutes: Math.round(hours * 60),
-    category,
+    category: oneOf(raw.category, TASK_CATEGORIES),
     githubUrl: safeUrl(raw.githubUrl),
-    githubNumber,
+    githubNumber: Number.isInteger(raw.githubNumber) ? (raw.githubNumber as number) : undefined,
     description: optionalText(raw.description),
     notes: optionalText(raw.notes),
     completionPct,
@@ -121,19 +135,20 @@ export function sanitizeEntry(raw: unknown): TimeEntry | null {
     gapReason: optionalText(raw.gapReason),
     gapSolution: optionalText(raw.gapSolution),
     remark: optionalText(raw.remark),
-    isCompleted: raw.isCompleted === true ? true : undefined,
-    focusLevel: raw.focusLevel === 'deep' || raw.focusLevel === 'normal' || raw.focusLevel === 'shallow' ? raw.focusLevel : undefined,
+    isCompleted: raw.isCompleted === true || undefined,
+    focusLevel: oneOf(raw.focusLevel, FOCUS_LEVELS),
     createdAt: clampNumber(raw.createdAt, 0, Number.MAX_SAFE_INTEGER, Date.now()),
   };
 }
 
 export function sanitizeDayLog(raw: unknown): DayLog | null {
   if (!isRecord(raw) || !isIsoDate(raw.date)) return null;
-  if (!DAY_STATUSES.includes(raw.status as DayStatusType)) return null;
+  const status = oneOf(raw.status, DAY_STATUSES);
+  if (!status) return null;
   const time = (v: unknown) => (typeof v === 'string' && TIME_PATTERN.test(v) ? v : undefined);
   return {
     date: raw.date,
-    status: raw.status as DayStatusType,
+    status,
     note: optionalText(raw.note, 500),
     targetHours: raw.targetHours === undefined ? undefined : clampNumber(raw.targetHours, 0, 24, 0),
     checkInTime: time(raw.checkInTime),

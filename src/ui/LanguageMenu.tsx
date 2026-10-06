@@ -12,6 +12,84 @@ interface LanguageMenuProps {
   onChange: (lang: Language) => void;
 }
 
+const LAST = LANGUAGES.length - 1;
+const MOVES: Record<string, (i: number) => number> = {
+  ArrowDown: (i) => (i >= LAST ? 0 : i + 1),
+  ArrowUp: (i) => (i <= 0 ? LAST : i - 1),
+  Home: () => 0,
+  End: () => LAST,
+};
+
+interface LanguageOptionProps {
+  id: string;
+  lang: Language;
+  selected: boolean;
+  active: boolean;
+  onChoose: () => void;
+  onHover: () => void;
+}
+
+const LanguageOption: React.FC<LanguageOptionProps> = ({ id, lang, selected, active, onChoose, onHover }) => {
+  const { t } = useI18n();
+  return (
+    <li
+      id={id}
+      role="option"
+      aria-selected={selected}
+      data-ripple
+      onClick={onChoose}
+      onMouseEnter={onHover}
+      className={`relative overflow-hidden flex items-center gap-3 px-3.5 py-2.5 text-sm cursor-pointer select-none transition-colors ${
+        active ? 'bg-indigo-50' : ''
+      } ${selected ? 'font-bold text-indigo-700' : 'text-neutral-800'}`}
+    >
+      <span className="text-base leading-none" aria-hidden="true">
+        {FLAGS[lang]}
+      </span>
+      <span className="flex-1">{t.language.names[lang]}</span>
+      {selected && <Check className="w-4 h-4" />}
+    </li>
+  );
+};
+
+interface LanguageTriggerProps {
+  ref: React.Ref<HTMLButtonElement>;
+  value: Language;
+  open: boolean;
+  menuId: string;
+  onToggle: () => void;
+  onOpen: () => void;
+}
+
+const LanguageTrigger: React.FC<LanguageTriggerProps> = ({ ref, value, open, menuId, onToggle, onOpen }) => {
+  const { t } = useI18n();
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      onOpen();
+    }
+  };
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onToggle}
+      onKeyDown={onKeyDown}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={menuId}
+      aria-label={`${t.language.label}: ${t.language.names[value]}`}
+      className="flex items-center gap-1.5 pl-2.5 pr-2 py-2 text-xs font-bold text-neutral-700 bg-white border border-neutral-300 rounded-full hover:bg-neutral-50 transition-colors"
+    >
+      <Languages className="w-4 h-4 text-indigo-600" />
+      {/* Full name only where the header has room (the desktop tab bar starts at xl) */}
+      <span className="hidden sm:inline xl:hidden">{t.language.names[value]}</span>
+      <span className="sm:hidden xl:inline uppercase">{value}</span>
+      <ChevronDown className={`w-3.5 h-3.5 text-neutral-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+    </button>
+  );
+};
+
 /** Material dropdown menu for the interface language (keyboard: arrows, Home/End, Enter, Escape). */
 export const LanguageMenu: React.FC<LanguageMenuProps> = ({ value, onChange }) => {
   const { t } = useI18n();
@@ -38,16 +116,9 @@ export const LanguageMenu: React.FC<LanguageMenuProps> = ({ value, onChange }) =
   };
 
   const onMenuKey = (e: React.KeyboardEvent) => {
-    const last = LANGUAGES.length - 1;
-    const moves: Record<string, (i: number) => number> = {
-      ArrowDown: (i) => (i >= last ? 0 : i + 1),
-      ArrowUp: (i) => (i <= 0 ? last : i - 1),
-      Home: () => 0,
-      End: () => last,
-    };
-    if (moves[e.key]) {
+    if (MOVES[e.key]) {
       e.preventDefault();
-      setActive(moves[e.key]);
+      setActive(MOVES[e.key]);
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       choose(LANGUAGES[active]);
@@ -58,27 +129,14 @@ export const LanguageMenu: React.FC<LanguageMenuProps> = ({ value, onChange }) =
 
   return (
     <div className="relative">
-      <button
+      <LanguageTrigger
         ref={buttonRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setOpen(true);
-          }
-        }}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-label={`${t.language.label}: ${t.language.names[value]}`}
-        className="flex items-center gap-1.5 pl-2.5 pr-2 py-2 text-xs font-bold text-neutral-700 bg-white border border-neutral-300 rounded-full hover:bg-neutral-50 transition-colors"
-      >
-        <Languages className="w-4 h-4 text-indigo-600" />
-        <span className="hidden sm:inline">{t.language.names[value]}</span>
-        <span className="sm:hidden uppercase">{value}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-neutral-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
+        value={value}
+        open={open}
+        menuId={menuId}
+        onToggle={() => setOpen((o) => !o)}
+        onOpen={() => setOpen(true)}
+      />
 
       <AnimatePresence>
         {open && (
@@ -98,24 +156,15 @@ export const LanguageMenu: React.FC<LanguageMenuProps> = ({ value, onChange }) =
             className="absolute right-0 top-full mt-2 z-40 min-w-[180px] py-1.5 bg-white rounded-xl elevation-3 border border-neutral-200 outline-none"
           >
             {LANGUAGES.map((lang, i) => (
-              <li
+              <LanguageOption
                 key={lang}
                 id={`${menuId}-${lang}`}
-                role="option"
-                aria-selected={lang === value}
-                data-ripple
-                onClick={() => choose(lang)}
-                onMouseEnter={() => setActive(i)}
-                className={`relative overflow-hidden flex items-center gap-3 px-3.5 py-2.5 text-sm cursor-pointer select-none transition-colors ${
-                  i === active ? 'bg-indigo-50' : ''
-                } ${lang === value ? 'font-bold text-indigo-700' : 'text-neutral-800'}`}
-              >
-                <span className="text-base leading-none" aria-hidden="true">
-                  {FLAGS[lang]}
-                </span>
-                <span className="flex-1">{t.language.names[lang]}</span>
-                {lang === value && <Check className="w-4 h-4" />}
-              </li>
+                lang={lang}
+                selected={lang === value}
+                active={i === active}
+                onChoose={() => choose(lang)}
+                onHover={() => setActive(i)}
+              />
             ))}
           </motion.ul>
         )}

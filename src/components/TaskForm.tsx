@@ -5,10 +5,11 @@ import { useI18n } from '../i18n';
 import { TASK_CATEGORIES, type TaskCategory, type TimeEntry, type UserSettings } from '../types';
 import { DatePicker } from '../ui/DatePicker';
 import { formatDateIso, formatLongDate, parseDateIso } from '../utils/dateUtils';
-import { clampNumber, safeUrl } from '../utils/security';
+import { safeUrl } from '../utils/security';
 import { GitHubSearchField, projectForRepo } from './GitHubSearchField';
+import { initialState, toDraft, validationError, type FormState, type TaskDraft } from './taskFormModel';
 
-export type TaskDraft = Omit<TimeEntry, 'id' | 'createdAt'>;
+export type { TaskDraft } from './taskFormModel';
 
 interface TaskFormProps {
   settings: UserSettings;
@@ -22,42 +23,180 @@ interface TaskFormProps {
   actions?: React.ReactNode;
 }
 
-interface FormState {
-  taskName: string;
-  project: string;
-  category: TaskCategory;
-  date: string;
-  hours: string;
-  githubUrl: string;
-  githubNumber?: number;
-  description: string;
-  completionPct: number;
-  gapReason: string;
-  gapSolution: string;
-  remark: string;
-}
-
-function initialState(editing: TimeEntry | null | undefined, date: string): FormState {
-  return {
-    taskName: editing?.taskName ?? '',
-    project: editing?.project ?? '',
-    category: editing?.category ?? 'development',
-    date: editing?.date ?? date,
-    hours: String(editing?.hours ?? 1),
-    githubUrl: editing?.githubUrl ?? '',
-    githubNumber: editing?.githubNumber,
-    description: editing?.description ?? '',
-    completionPct: editing?.completionPct ?? 100,
-    gapReason: editing?.gapReason ?? '',
-    gapSolution: editing?.gapSolution ?? '',
-    remark: editing?.remark ?? editing?.notes ?? '',
-  };
-}
+type SetField = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 
 const QUICK_HOURS = [1, 2, 4, 8];
 
-export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, editing, showDate, submitLabel, onSubmit, actions }) => {
+const expand = {
+  initial: { opacity: 0, height: 0 },
+  animate: { opacity: 1, height: 'auto' },
+  exit: { opacity: 0, height: 0 },
+};
+
+interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
+  id: string;
+  label: string;
+  onValue: (value: string) => void;
+}
+
+const TextField: React.FC<TextFieldProps> = ({ id, label, onValue, className = 'input-field text-xs', ...input }) => (
+  <div>
+    <label className="field-label" htmlFor={id}>
+      {label}
+    </label>
+    <input id={id} type="text" {...input} onChange={(e) => onValue(e.target.value)} className={className} />
+  </div>
+);
+
+const FormError: React.FC<{ message: string }> = ({ message }) => (
+  <AnimatePresence>
+    {message && (
+      <motion.div {...expand} role="alert" className="px-3 py-2.5 text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-xl font-medium">
+        {message}
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+const LinkPreview: React.FC<{ url: string; onRemove: () => void }> = ({ url, onRemove }) => {
+  const { t } = useI18n();
+  const href = safeUrl(url);
+  if (!href) return null;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-indigo-700 mt-1.5">
+      <Link2 className="w-3.5 h-3.5 shrink-0" />
+      <a href={href} target="_blank" rel="noopener noreferrer" className="underline truncate max-w-xs">
+        {url}
+      </a>
+      <button type="button" onClick={onRemove} className="icon-btn p-0.5" aria-label={t.entryModal.removeLink} title={t.entryModal.removeLink}>
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+};
+
+const HoursField: React.FC<{ id: string; value: string; onValue: (value: string) => void }> = ({ id, value, onValue }) => {
+  const { t } = useI18n();
+  return (
+    <div>
+      <label className="field-label" htmlFor={id}>
+        {t.dayLog.hoursLabel}
+      </label>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
+          id={id}
+          type="number"
+          step="0.25"
+          min="0.25"
+          max="24"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onValue(e.target.value)}
+          className="input-field w-20 text-center font-bold tabular-nums"
+        />
+        {QUICK_HOURS.map((h) => {
+          const active = Number(value) === h;
+          return (
+            <button
+              key={h}
+              type="button"
+              onClick={() => onValue(String(h))}
+              className={`px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${active ? 'bg-indigo-600 text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800'}`}
+            >
+              {h}h
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const ProgressSection: React.FC<{ form: FormState; set: SetField; fieldId: (name: string) => string }> = ({ form, set, fieldId }) => {
+  const { t } = useI18n();
+  const gap = 100 - form.completionPct;
+  const hasGap = gap > 0;
+  return (
+    <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-bold text-neutral-800">{t.dayLog.progressTitle}</span>
+        <div className="flex items-center gap-2">
+          <label htmlFor={fieldId('pct')} className="text-xs text-neutral-500 font-medium">
+            {t.dayLog.completionLabel}
+          </label>
+          <input
+            id={fieldId('pct')}
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={form.completionPct}
+            onChange={(e) => set('completionPct', Number(e.target.value))}
+            className="w-28 accent-indigo-600"
+          />
+          <span className="w-11 text-right text-xs font-black tabular-nums">{form.completionPct}%</span>
+          {hasGap && <span className="text-xs text-amber-700 font-bold">({t.dayLog.gapLabel(gap)})</span>}
+        </div>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {hasGap && (
+          <motion.div {...expand} transition={{ duration: 0.2 }} className="overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-neutral-200">
+              <TextField
+                id={fieldId('reason')}
+                label={t.dayLog.gapReasonLabel}
+                maxLength={2000}
+                placeholder={t.dayLog.gapReasonPlaceholder}
+                value={form.gapReason}
+                onValue={(v) => set('gapReason', v)}
+              />
+              <TextField
+                id={fieldId('solution')}
+                label={t.dayLog.gapSolutionLabel}
+                maxLength={2000}
+                placeholder={t.dayLog.gapSolutionPlaceholder}
+                value={form.gapSolution}
+                onValue={(v) => set('gapSolution', v)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const CategoryField: React.FC<{ id: string; value: TaskCategory; onValue: (value: TaskCategory) => void }> = ({ id, value, onValue }) => {
+  const { t } = useI18n();
+  return (
+    <div>
+      <label className="field-label" htmlFor={id}>
+        {t.entryModal.categoryLabel}
+      </label>
+      <select id={id} value={value} onChange={(e) => onValue(e.target.value as TaskCategory)} className="input-field">
+        {TASK_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {t.categories[c]}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+const DateField: React.FC<{ value: string; onValue: (value: string) => void }> = ({ value, onValue }) => {
   const { t, lang } = useI18n();
+  return (
+    <div>
+      <span className="field-label">{t.entryModal.dateLabel}</span>
+      <DatePicker variant="field" value={parseDateIso(value)} onChange={(d) => onValue(formatDateIso(d))} label={formatLongDate(value, lang)} />
+    </div>
+  );
+};
+
+export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, editing, showDate, submitLabel, onSubmit, actions }) => {
+  const { t } = useI18n();
   const ids = useId();
   const [form, setForm] = useState<FormState>(() => initialState(editing, date));
   const [error, setError] = useState('');
@@ -67,111 +206,57 @@ export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, ed
     setError('');
   }, [editing, date]);
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const gap = 100 - form.completionPct;
+  const set: SetField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const fieldId = (name: string) => `${ids}-${name}`;
 
   const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const taskName = form.taskName.trim();
-    const hours = Number(form.hours);
-    const url = form.githubUrl.trim();
-    if (!taskName) return setError(t.dayLog.taskRequired);
-    if (!Number.isFinite(hours) || hours < 0.25 || hours > 24) return setError(t.dayLog.hoursInvalid);
-    if (url && !safeUrl(url)) return setError(t.dayLog.linkInvalid);
-
-    const completionPct = clampNumber(form.completionPct, 0, 100, 100);
-    onSubmit({
-      date: form.date,
-      taskName: taskName.slice(0, 500),
-      project: form.project.trim().slice(0, 120),
-      category: form.category,
-      hours,
-      durationMinutes: Math.round(hours * 60),
-      githubUrl: safeUrl(url),
-      githubNumber: url ? form.githubNumber : undefined,
-      description: form.description.trim() || undefined,
-      completionPct,
-      gapPct: 100 - completionPct,
-      gapReason: completionPct < 100 ? form.gapReason.trim() || undefined : undefined,
-      gapSolution: completionPct < 100 ? form.gapSolution.trim() || undefined : undefined,
-      remark: form.remark.trim() || undefined,
-      notes: undefined,
-      isCompleted: completionPct === 100,
-    });
+    const message = validationError(form, t.dayLog);
+    setError(message);
+    if (message) return;
+    onSubmit(toDraft(form));
     if (!editing) setForm(initialState(null, form.date));
-    setError('');
   };
-
-  const fieldId = (name: string) => `${ids}-${name}`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            role="alert"
-            className="px-3 py-2.5 text-xs text-rose-800 bg-rose-50 border border-rose-200 rounded-xl font-medium"
-          >
-            {error}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <FormError message={error} />
 
       <GitHubSearchField
         settings={settings}
-        onSelect={(item) => {
+        onSelect={(item) =>
           setForm((f) => ({
             ...f,
             taskName: `${item.title} #${item.number}`,
             githubUrl: item.html_url,
             githubNumber: item.number,
             project: projectForRepo(item.repoName, projects) ?? f.project,
-          }));
-        }}
+          }))
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
         <div className="md:col-span-7">
-          <label className="field-label" htmlFor={fieldId('task')}>
-            {t.dayLog.taskNameLabel}
-          </label>
-          <input
+          <TextField
             id={fieldId('task')}
-            type="text"
+            label={t.dayLog.taskNameLabel}
             maxLength={500}
             placeholder={t.dayLog.taskNamePlaceholder}
             value={form.taskName}
-            onChange={(e) => set('taskName', e.target.value)}
+            onValue={(v) => set('taskName', v)}
             className="input-field font-semibold"
           />
-          {form.githubUrl && safeUrl(form.githubUrl) && (
-            <div className="flex items-center gap-1.5 text-xs text-indigo-700 mt-1.5">
-              <Link2 className="w-3.5 h-3.5 shrink-0" />
-              <a href={safeUrl(form.githubUrl)} target="_blank" rel="noopener noreferrer" className="underline truncate max-w-xs">
-                {form.githubUrl}
-              </a>
-              <button type="button" onClick={() => set('githubUrl', '')} className="icon-btn p-0.5" aria-label={t.entryModal.removeLink} title={t.entryModal.removeLink}>
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+          <LinkPreview url={form.githubUrl} onRemove={() => set('githubUrl', '')} />
         </div>
-
         <div className="md:col-span-5">
-          <label className="field-label" htmlFor={fieldId('project')}>
-            {t.dayLog.projectLabel}
-          </label>
-          <input
+          <TextField
             id={fieldId('project')}
-            type="text"
+            label={t.dayLog.projectLabel}
             list={fieldId('projects')}
             maxLength={120}
             placeholder={t.dayLog.projectPlaceholder}
             value={form.project}
-            onChange={(e) => set('project', e.target.value)}
+            onValue={(v) => set('project', v)}
             className="input-field"
           />
           <datalist id={fieldId('projects')}>
@@ -182,158 +267,35 @@ export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, ed
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 gap-3 ${showDate ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
-        {showDate && (
-          <div>
-            <span className="field-label">{t.entryModal.dateLabel}</span>
-            <DatePicker
-              variant="field"
-              value={parseDateIso(form.date)}
-              onChange={(d) => set('date', formatDateIso(d))}
-              label={formatLongDate(form.date, lang)}
-            />
-          </div>
-        )}
-        <div>
-          <label className="field-label" htmlFor={fieldId('category')}>
-            {t.entryModal.categoryLabel}
-          </label>
-          <select id={fieldId('category')} value={form.category} onChange={(e) => set('category', e.target.value as TaskCategory)} className="input-field">
-            {TASK_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {t.categories[c]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="field-label" htmlFor={fieldId('hours')}>
-            {t.dayLog.hoursLabel}
-          </label>
-          <div className="flex items-center gap-1.5">
-            <input
-              id={fieldId('hours')}
-              type="number"
-              step="0.25"
-              min="0.25"
-              max="24"
-              inputMode="decimal"
-              value={form.hours}
-              onChange={(e) => set('hours', e.target.value)}
-              className="input-field w-20 text-center font-bold tabular-nums"
-            />
-            {QUICK_HOURS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => set('hours', String(h))}
-                className={`px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${
-                  Number(form.hours) === h ? 'bg-indigo-600 text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800'
-                }`}
-              >
-                {h}h
-              </button>
-            ))}
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {showDate && <DateField value={form.date} onValue={(v) => set('date', v)} />}
+        <CategoryField id={fieldId('category')} value={form.category} onValue={(v) => set('category', v)} />
+        <div className={showDate ? 'sm:col-span-2' : ''}>
+          <HoursField id={fieldId('hours')} value={form.hours} onValue={(v) => set('hours', v)} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label className="field-label" htmlFor={fieldId('link')}>
-            {t.dayLog.linkLabel}
-          </label>
-          <input
-            id={fieldId('link')}
-            type="url"
-            maxLength={2048}
-            placeholder={t.dayLog.linkPlaceholder}
-            value={form.githubUrl}
-            onChange={(e) => set('githubUrl', e.target.value)}
-            className="input-field text-xs"
-          />
-        </div>
-        <div>
-          <label className="field-label" htmlFor={fieldId('desc')}>
-            {t.dayLog.descriptionLabel}
-          </label>
-          <input
-            id={fieldId('desc')}
-            type="text"
-            maxLength={2000}
-            placeholder={t.dayLog.descriptionPlaceholder}
-            value={form.description}
-            onChange={(e) => set('description', e.target.value)}
-            className="input-field text-xs"
-          />
-        </div>
+        <TextField
+          id={fieldId('link')}
+          type="url"
+          label={t.dayLog.linkLabel}
+          maxLength={2048}
+          placeholder={t.dayLog.linkPlaceholder}
+          value={form.githubUrl}
+          onValue={(v) => set('githubUrl', v)}
+        />
+        <TextField
+          id={fieldId('desc')}
+          label={t.dayLog.descriptionLabel}
+          maxLength={2000}
+          placeholder={t.dayLog.descriptionPlaceholder}
+          value={form.description}
+          onValue={(v) => set('description', v)}
+        />
       </div>
 
-      <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs font-bold text-neutral-800">{t.dayLog.progressTitle}</span>
-          <div className="flex items-center gap-2">
-            <label htmlFor={fieldId('pct')} className="text-xs text-neutral-500 font-medium">
-              {t.dayLog.completionLabel}
-            </label>
-            <input
-              id={fieldId('pct')}
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value={form.completionPct}
-              onChange={(e) => set('completionPct', Number(e.target.value))}
-              className="w-28 accent-indigo-600"
-            />
-            <span className="w-11 text-right text-xs font-black tabular-nums">{form.completionPct}%</span>
-            {gap > 0 && <span className="text-xs text-amber-700 font-bold">({t.dayLog.gapLabel(gap)})</span>}
-          </div>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {gap > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-neutral-200">
-                <div>
-                  <label className="field-label" htmlFor={fieldId('reason')}>
-                    {t.dayLog.gapReasonLabel}
-                  </label>
-                  <input
-                    id={fieldId('reason')}
-                    type="text"
-                    maxLength={2000}
-                    placeholder={t.dayLog.gapReasonPlaceholder}
-                    value={form.gapReason}
-                    onChange={(e) => set('gapReason', e.target.value)}
-                    className="input-field text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor={fieldId('solution')}>
-                    {t.dayLog.gapSolutionLabel}
-                  </label>
-                  <input
-                    id={fieldId('solution')}
-                    type="text"
-                    maxLength={2000}
-                    placeholder={t.dayLog.gapSolutionPlaceholder}
-                    value={form.gapSolution}
-                    onChange={(e) => set('gapSolution', e.target.value)}
-                    className="input-field text-xs"
-                  />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <ProgressSection form={form} set={set} fieldId={fieldId} />
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <input
