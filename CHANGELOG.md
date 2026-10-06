@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-06
+
 ### Added
 
 - ADR-0001 documenting the local development environment (`docs/adr/0001-local-development-environment.md`).
@@ -54,5 +56,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Live timer component.
 - `.env.example` and `metadata.json`: the app needs no environment configuration.
 
-[Unreleased]: #unreleased
-[1.0.0]: #100---2026-10-06
+[Unreleased]: https://github.com/dab246/ChronoWork/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/dab246/ChronoWork/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/dab246/ChronoWork/releases/tag/v1.0.0
