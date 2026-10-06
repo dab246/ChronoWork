@@ -35,6 +35,8 @@ function contentSecurityPolicy(): Plugin {
 }
 
 export default defineConfig({
+  // Sub-path the app is served from, e.g. /ChronoWork/ on GitHub Pages (set by the deploy workflow)
+  base: process.env.BASE_PATH || '/',
   plugins: [react(), tailwindcss(), contentSecurityPolicy()],
   resolve: {
     alias: {

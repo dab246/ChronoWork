@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Pages deployment: every push to `main` type checks, tests, builds and deploys to https://dab246.github.io/ChronoWork/ (`.github/workflows/deploy-pages.yml`).
+- `BASE_PATH` build setting so the app can be served from a sub-path.
+
+### Security
+
+- The app refuses to run inside a frame (clickjacking), since static hosts like GitHub Pages cannot send `frame-ancestors` / `X-Frame-Options`.
+
 ## [1.1.0] - 2026-10-06
 
 ### Added
