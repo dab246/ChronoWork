@@ -1,350 +1,192 @@
 import React from 'react';
-import { 
-  TrendingUp, 
-  Target, 
-  Zap, 
-  Clock, 
-  CheckCircle2, 
-  Award, 
-  Flame, 
-  AlertTriangle,
-  Lightbulb,
-  Layers,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react';
-import { TimeEntry, DayLog, UserSettings, DAY_STATUS_CONFIGS, CATEGORY_LABELS } from '../types';
-import { 
-  getWeekDays, 
-  formatDateIso, 
-  formatShortDate, 
-  getVietnameseDayName, 
-  getWeekRangeString, 
-  minutesToHoursDecimal,
-  isWeekendDay
-} from '../utils/dateUtils';
+import { motion } from 'motion/react';
+import { Target, CheckCircle2, Award, Flame, Lightbulb } from 'lucide-react';
+import type { TimeEntry, DayLog, UserSettings } from '../types';
+import { formatDateIso, formatHours, formatShortDate, getDayName, getWeekDays } from '../utils/dateUtils';
+import { entryHours, filterEntriesForDays, getDayTargetHours, getWeeklyTargetHours, sumHours } from '../utils/workdays';
+import { useI18n } from '../i18n';
+import { WeekNavigator } from './WeekNavigator';
 
 interface PerformanceViewProps {
   currentDate: Date;
-  onPrevWeek: () => void;
-  onNextWeek: () => void;
-  onResetToCurrentWeek: () => void;
+  onChangeDate: (d: Date) => void;
   entries: TimeEntry[];
   dayLogs: Record<string, DayLog>;
   settings: UserSettings;
 }
 
-export const PerformanceView: React.FC<PerformanceViewProps> = ({
-  currentDate,
-  onPrevWeek,
-  onNextWeek,
-  onResetToCurrentWeek,
-  entries,
-  dayLogs,
-  settings,
-}) => {
+type Insight = { type: 'success' | 'info' | 'warning'; text: string };
+
+const DEEP = new Set(['development', 'security', 'bugfix']);
+const NORMAL = new Set(['pr_review', 'release']);
+
+const Bar: React.FC<{ value: number; className: string }> = ({ value, className }) => (
+  <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
+    <motion.div className={`h-full rounded-full ${className}`} initial={{ width: 0 }} animate={{ width: `${Math.min(100, value)}%` }} transition={{ duration: 0.6, ease: [0.2, 0, 0, 1] }} />
+  </div>
+);
+
+export const PerformanceView: React.FC<PerformanceViewProps> = ({ currentDate, onChangeDate, entries, dayLogs, settings }) => {
+  const { t, lang } = useI18n();
+  const p = t.performance;
   const weekDays = getWeekDays(currentDate);
-  const weekIsoDates = weekDays.map((d) => formatDateIso(d));
-  const weekEntries = entries.filter((e) => weekIsoDates.includes(e.date));
+  const weekEntries = filterEntriesForDays(entries, weekDays);
 
-  const totalMinutes = weekEntries.reduce((acc, curr) => acc + (curr.hours ? curr.hours * 60 : (curr.durationMinutes || 0)), 0);
-  const totalHours = minutesToHoursDecimal(totalMinutes);
-  const targetHours = settings.weeklyTargetHours || 40;
-  const targetPct = Math.round((totalHours / targetHours) * 100);
+  const totalHours = sumHours(weekEntries);
+  const targetHours = getWeeklyTargetHours(weekDays, dayLogs, settings);
+  const targetPct = targetHours > 0 ? Math.round((totalHours / targetHours) * 100) : 100;
 
-  // Focus level breakdown
-  let deepMinutes = 0;
-  let normalMinutes = 0;
-  let shallowMinutes = 0;
+  let deep = 0;
+  let normal = 0;
+  let meeting = 0;
+  for (const e of weekEntries) {
+    const h = entryHours(e);
+    if (e.focusLevel === 'deep' || (!e.focusLevel && DEEP.has(e.category ?? 'development'))) deep += h;
+    else if (e.focusLevel === 'normal' || (!e.focusLevel && NORMAL.has(e.category ?? ''))) normal += h;
+    if (e.category === 'meeting') meeting += h;
+  }
+  const pct = (h: number) => (totalHours > 0 ? Math.round((h / totalHours) * 100) : 0);
+  const deepPct = pct(deep);
+  const normalPct = pct(normal);
+  const shallowPct = totalHours > 0 ? Math.max(0, 100 - deepPct - normalPct) : 0;
+  const meetingPct = pct(meeting);
 
-  weekEntries.forEach((e) => {
-    const mins = e.hours ? e.hours * 60 : (e.durationMinutes || 0);
-    if (e.focusLevel === 'deep' || e.category === 'development' || e.category === 'security') {
-      deepMinutes += mins;
-    } else if (e.focusLevel === 'normal' || e.category === 'pr_review' || e.category === 'release') {
-      normalMinutes += mins;
-    } else {
-      shallowMinutes += mins;
-    }
-  });
-
-  const deepHours = minutesToHoursDecimal(deepMinutes);
-  const deepPct = totalMinutes > 0 ? Math.round((deepMinutes / totalMinutes) * 100) : 0;
-  const normalPct = totalMinutes > 0 ? Math.round((normalMinutes / totalMinutes) * 100) : 0;
-  const shallowPct = totalMinutes > 0 ? Math.round((shallowMinutes / totalMinutes) * 100) : 0;
-
-  // Meeting minutes
-  const meetingMinutes = weekEntries
-    .filter((e) => e.category === 'meeting')
-    .reduce((acc, curr) => acc + (curr.hours ? curr.hours * 60 : (curr.durationMinutes || 0)), 0);
-  const meetingPct = totalMinutes > 0 ? Math.round((meetingMinutes / totalMinutes) * 100) : 0;
-
-  // Task completion
   const totalTasks = weekEntries.length;
-  const completedTasks = weekEntries.filter((t) => t.completionPct === 100 || t.isCompleted).length;
-  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completedTasks = weekEntries.filter((e) => e.completionPct === 100).length;
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Daily hours array for bar chart
-  const dailyHours = weekIsoDates.map((iso) => {
-    const dayEntries = weekEntries.filter((e) => e.date === iso);
-    const mins = dayEntries.reduce((sum, e) => sum + (e.hours ? e.hours * 60 : (e.durationMinutes || 0)), 0);
-    return minutesToHoursDecimal(mins);
-  });
+  const daily = weekDays.map((d) => sumHours(weekEntries.filter((e) => e.date === formatDateIso(d))));
+  const targets = weekDays.map((d) => getDayTargetHours(d, dayLogs, settings));
+  const maxValue = Math.max(...daily, ...targets, 1) * 1.15;
 
-  const maxDailyHour = Math.max(...dailyHours, 8);
-
-  // Insights generation
-  const insights: { type: 'success' | 'info' | 'warning'; text: string }[] = [];
-
-  if (targetPct >= 100) {
-    insights.push({
-      type: 'success',
-      text: `Xuất sắc! Bạn đã đạt ${targetPct}% mục tiêu tuần (${totalHours}h / ${targetHours}h).`,
-    });
-  } else if (targetPct >= 80) {
-    insights.push({
-      type: 'info',
-      text: `Tiến độ tốt: Bạn đã hoàn thành ${targetPct}% mục tiêu tuần. Cần thêm ${(targetHours - totalHours).toFixed(1)}h để cán mốc.`,
-    });
-  } else {
-    insights.push({
-      type: 'warning',
-      text: `Tiến độ hiện tại đang đạt ${targetPct}% mục tiêu. Hãy kiểm tra các ngày chưa log đủ giờ.`,
-    });
-  }
-
-  if (deepPct >= 50) {
-    insights.push({
-      type: 'success',
-      text: `Chỉ số Deep Work rất cao (${deepPct}% thời lượng). Bạn đang duy trì mức độ tập trung sâu tuyệt vời cho các bài toán phức tạp!`,
-    });
-  } else if (deepPct < 30 && totalMinutes > 0) {
-    insights.push({
-      type: 'warning',
-      text: `Tỷ lệ Deep Work chỉ đạt ${deepPct}%. Hãy cân nhắc xếp các khối thời gian (Time-blocking) không ngắt quãng để tập trung lập trình.`,
-    });
-  }
-
-  if (meetingPct > 35) {
-    insights.push({
-      type: 'warning',
-      text: `Thời lượng họp chiếm ${meetingPct}% tổng thời gian (${minutesToHoursDecimal(meetingMinutes)}h). Cân nhắc giảm bớt họp để có thêm thời gian code.`,
-    });
-  } else {
-    insights.push({
-      type: 'info',
-      text: `Thời lượng họp chiếm ${meetingPct}%, ở mức cân bằng hợp lý để giải quyết các công việc kỹ thuật cốt lõi.`,
-    });
-  }
+  const insights: Insight[] = [];
+  if (targetPct >= 100) insights.push({ type: 'success', text: p.insights.excellent(targetPct, formatHours(totalHours), formatHours(targetHours)) });
+  else if (targetPct >= 80) insights.push({ type: 'info', text: p.insights.good(targetPct, formatHours(targetHours - totalHours)) });
+  else insights.push({ type: 'warning', text: p.insights.low(targetPct) });
+  if (deepPct >= 50) insights.push({ type: 'success', text: p.insights.deepHigh(deepPct) });
+  else if (deepPct < 30 && totalHours > 0) insights.push({ type: 'warning', text: p.insights.deepLow(deepPct) });
+  insights.push(
+    meetingPct > 35
+      ? { type: 'warning', text: p.insights.meetingHigh(meetingPct, formatHours(meeting)) }
+      : { type: 'info', text: p.insights.meetingOk(meetingPct) }
+  );
 
   return (
     <div className="space-y-6">
-      
-      {/* Top Header & Week Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-neutral-200">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-neutral-200">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-neutral-900">
-            Theo Dõi & Phân Tích Hiệu Suất Cá Nhân
-          </h2>
-          <p className="text-xs text-neutral-500 font-medium mt-0.5">
-            Đo lường tiến độ mục tiêu, tỷ lệ tập trung sâu (Deep Work) và nhịp độ làm việc hàng ngày
-          </p>
+          <h2 className="text-xl font-bold tracking-tight text-neutral-900">{p.title}</h2>
+          <p className="text-xs text-neutral-500 font-medium mt-0.5">{p.subtitle}</p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onResetToCurrentWeek}
-            className="px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors"
-          >
-            Tuần này
-          </button>
-          <div className="flex items-center bg-white border border-neutral-300 rounded-lg p-0.5 shadow-2xs">
-            <button
-              onClick={onPrevWeek}
-              title="Tuần trước"
-              className="p-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-md transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="px-3 text-xs font-semibold text-neutral-800 tabular-nums">
-              {getWeekRangeString(currentDate)}
-            </span>
-            <button
-              onClick={onNextWeek}
-              title="Tuần sau"
-              className="p-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-md transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <WeekNavigator currentDate={currentDate} onChange={onChangeDate} />
       </div>
 
-      {/* 3 Core Performance Scorecards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* Card 1: Goal Progress */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>Đạt Mục Tiêu Tuần</span>
-              <Target className="w-4 h-4 text-neutral-400" />
+              <span>{p.goal}</span>
+              <Target className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 font-mono tabular-nums">
-                {targetPct}%
-              </span>
-              <span className="text-xs text-neutral-500">
-                ({totalHours}h / {targetHours}h)
-              </span>
+              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{targetPct}%</span>
+              <span className="text-xs text-neutral-500">({formatHours(totalHours)}h / {formatHours(targetHours)}h)</span>
             </div>
           </div>
-          <div className="mt-4">
-            <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  targetPct >= 100 ? 'bg-emerald-600' : 'bg-neutral-900'
-                }`}
-                style={{ width: `${Math.min(100, targetPct)}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-neutral-500 mt-1.5">
+          <div>
+            <Bar value={targetPct} className={targetPct >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'} />
+            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
               <span>0h</span>
-              <span>Chuẩn: {targetHours}h</span>
+              <span>{p.standard(formatHours(targetHours))}</span>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Deep Work Ratio */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>Tập Trung Sâu (Deep Work)</span>
+              <span>{p.deepWork}</span>
               <Flame className="w-4 h-4 text-amber-500" />
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 font-mono tabular-nums">
-                {deepPct}%
-              </span>
-              <span className="text-xs text-neutral-500">
-                ({deepHours}h tập trung cao)
-              </span>
+              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{deepPct}%</span>
+              <span className="text-xs text-neutral-500">{p.deepHours(formatHours(deep))}</span>
             </div>
           </div>
-          <div className="mt-4">
+          <div>
             <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden flex">
-              <div className="bg-indigo-600 h-full" style={{ width: `${deepPct}%` }} title={`Deep: ${deepPct}%`} />
-              <div className="bg-neutral-400 h-full" style={{ width: `${normalPct}%` }} title={`Normal: ${normalPct}%`} />
-              <div className="bg-neutral-200 h-full" style={{ width: `${shallowPct}%` }} title={`Shallow: ${shallowPct}%`} />
+              <div className="bg-indigo-600 h-full" style={{ width: `${deepPct}%` }} />
+              <div className="bg-indigo-300 h-full" style={{ width: `${normalPct}%` }} />
+              <div className="bg-neutral-300 h-full" style={{ width: `${shallowPct}%` }} />
             </div>
-            <div className="flex items-center justify-between text-[11px] text-neutral-500 mt-1.5">
-              <span className="text-indigo-600 font-medium">Deep: {deepPct}%</span>
-              <span>Bình thường: {normalPct}%</span>
-              <span>Họp/Nhẹ: {shallowPct}%</span>
+            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5 gap-2">
+              <span className="text-indigo-700 font-medium">{p.deep}: {deepPct}%</span>
+              <span>{p.normal}: {normalPct}%</span>
+              <span>{p.light}: {shallowPct}%</span>
             </div>
           </div>
         </div>
 
-        {/* Card 3: Task Completion */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+        <div className="card card-hover p-5 flex flex-col justify-between gap-4">
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              <span>Tỷ Lệ Hoàn Thành Task</span>
+              <span>{p.completion}</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-neutral-950 font-mono tabular-nums">
-                {taskCompletionRate}%
-              </span>
-              <span className="text-xs text-neutral-500">
-                ({completedTasks} / {totalTasks} task)
-              </span>
+              <span className="text-3xl font-extrabold text-neutral-950 tabular-nums">{completionRate}%</span>
+              <span className="text-xs text-neutral-500">({completedTasks} / {totalTasks})</span>
             </div>
           </div>
-          <div className="mt-4">
-            <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-emerald-600 h-full transition-all duration-300"
-                style={{ width: `${taskCompletionRate}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-neutral-500 mt-1.5">
-              <span>Đang xử lý: {totalTasks - completedTasks}</span>
-              <span className="text-emerald-700 font-medium">Đã xong: {completedTasks}</span>
+          <div>
+            <Bar value={completionRate} className="bg-emerald-500" />
+            <div className="flex justify-between text-[11px] text-neutral-500 mt-1.5">
+              <span>{p.inProgress(totalTasks - completedTasks)}</span>
+              <span className="text-emerald-700 font-medium">{p.done(completedTasks)}</span>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* Visual Chart: Daily Hours Consistency (Mon - Sun) */}
-      <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-2xs">
+      <div className="card p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
           <div>
-            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
-              Biểu Đồ Phân Bổ Giờ Làm Việc Từng Ngày
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              So sánh giờ làm thực tế mỗi ngày với mức chuẩn {settings.dailyStandardHours || 8}h/ngày
-            </p>
+            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">{p.chartTitle}</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">{p.chartSubtitle(formatHours(settings.dailyStandardHours))}</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-neutral-500">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-neutral-900"></span>
-              <span>Giờ thực tế</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-neutral-400 border-t border-dashed border-neutral-600"></span>
-              <span>Chuẩn 8h</span>
-            </div>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-indigo-600" />
+              {p.actual}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-4 border-t-2 border-dashed border-neutral-500" />
+              {p.standardLine(formatHours(settings.dailyStandardHours))}
+            </span>
           </div>
         </div>
 
-        {/* SVG-based Bar Chart */}
         <div className="h-56 w-full flex items-end justify-between gap-3 pt-6 pb-2 px-2 border-b border-neutral-200">
           {weekDays.map((day, idx) => {
-            const iso = weekIsoDates[idx];
-            const hours = dailyHours[idx];
-            const isWk = isWeekendDay(day);
-            const standard = isWk ? 0 : (settings.dailyStandardHours || 8);
-            const heightPercent = maxDailyHour > 0 ? (hours / (maxDailyHour * 1.15)) * 100 : 0;
-            const standardPercent = maxDailyHour > 0 ? (standard / (maxDailyHour * 1.15)) * 100 : 0;
-
+            const hours = daily[idx];
+            const target = targets[idx];
             return (
-              <div key={iso} className="flex-1 flex flex-col items-center h-full justify-end group">
-                {/* Tooltip on hover */}
-                <div className="text-[11px] font-mono font-bold text-neutral-900 mb-1 opacity-80 group-hover:opacity-100 tabular-nums">
-                  {hours > 0 ? `${hours}h` : '-'}
-                </div>
-
-                {/* Bar container */}
+              <div key={formatDateIso(day)} className="flex-1 flex flex-col items-center h-full justify-end group">
+                <div className="text-[11px] font-bold text-neutral-900 mb-1 tabular-nums">{hours > 0 ? `${formatHours(hours)}h` : '–'}</div>
                 <div className="relative w-full max-w-[48px] h-full flex items-end justify-center">
-                  {/* Standard 8h benchmark line */}
-                  {standard > 0 && (
-                    <div
-                      className="absolute w-full border-t border-dashed border-neutral-400 z-10 pointer-events-none"
-                      style={{ bottom: `${standardPercent}%` }}
-                      title="Mức chuẩn 8 giờ"
-                    />
+                  {target > 0 && (
+                    <div className="absolute w-full border-t-2 border-dashed border-neutral-400 z-10 pointer-events-none" style={{ bottom: `${(target / maxValue) * 100}%` }} />
                   )}
-
-                  {/* Actual Bar */}
-                  <div
-                    className={`w-full rounded-t-md transition-all duration-300 ${
-                      hours >= 8
-                        ? 'bg-emerald-600 hover:bg-emerald-700'
-                        : hours > 0
-                        ? 'bg-neutral-800 hover:bg-neutral-900'
-                        : 'bg-neutral-200/50'
-                    }`}
-                    style={{ height: `${Math.max(4, heightPercent)}%` }}
+                  <motion.div
+                    className={`w-full rounded-t-lg ${hours >= target && hours > 0 ? 'bg-emerald-500' : hours > 0 ? 'bg-indigo-600' : 'bg-neutral-200/60'}`}
+                    initial={{ height: 0 }}
+                    animate={{ height: `${Math.max(3, (hours / maxValue) * 100)}%` }}
+                    transition={{ duration: 0.5, delay: idx * 0.04, ease: [0.2, 0, 0, 1] }}
                   />
                 </div>
-
-                {/* Day label */}
                 <div className="text-center mt-2">
-                  <div className="text-xs font-semibold text-neutral-800">{getVietnameseDayName(day, true)}</div>
-                  <div className="text-[10px] text-neutral-400 font-mono">{formatShortDate(day)}</div>
+                  <div className="text-xs font-semibold text-neutral-800 capitalize">{getDayName(day, lang, true)}</div>
+                  <div className="text-[10px] text-neutral-400 tabular-nums">{formatShortDate(day)}</div>
                 </div>
               </div>
             );
@@ -352,32 +194,32 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({
         </div>
       </div>
 
-      {/* Insights & Recommendations */}
-      <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-2xs">
+      <div className="card p-6">
         <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Lightbulb className="w-4 h-4 text-amber-500" />
-          <span>Gợi Ý Tối Ưu Năng Suất Cá Nhân</span>
+          {p.insightsTitle}
         </h3>
-
         <div className="space-y-3">
           {insights.map((item, idx) => (
-            <div
-              key={idx}
-              className={`p-3.5 rounded-lg border text-xs flex items-start gap-3 ${
+            <motion.div
+              key={item.text}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.06 }}
+              className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
                 item.type === 'success'
-                  ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
                   : item.type === 'warning'
-                  ? 'bg-amber-50/60 border-amber-200 text-amber-900'
-                  : 'bg-neutral-50 border-neutral-200 text-neutral-800'
+                    ? 'bg-amber-50/70 border-amber-200 text-amber-900'
+                    : 'bg-neutral-50 border-neutral-200 text-neutral-800'
               }`}
             >
               <Award className="w-4 h-4 shrink-0 mt-0.5 opacity-80" />
               <p className="leading-relaxed">{item.text}</p>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>
-
     </div>
   );
 };

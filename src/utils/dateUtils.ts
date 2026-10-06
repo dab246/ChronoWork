@@ -1,6 +1,17 @@
 /**
  * Date utility functions for work logs and weekly timesheets
  */
+import type { Language } from '../types';
+
+const LOCALES: Record<Language, string> = {
+  vi: 'vi-VN',
+  en: 'en-GB',
+  fr: 'fr-FR',
+};
+
+export function localeOf(lang: Language): string {
+  return LOCALES[lang] ?? LOCALES.en;
+}
 
 export function formatDateIso(date: Date): string {
   const y = date.getFullYear();
@@ -9,9 +20,29 @@ export function formatDateIso(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function isIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = ISO_DATE.exec(value);
+  if (!match) return false;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return formatDateIso(d) === value;
+}
+
 export function parseDateIso(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 12, 0, 0); // Noon to prevent timezone shifts
+}
+
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return formatDateIso(a) === formatDateIso(b);
 }
 
 /**
@@ -20,8 +51,6 @@ export function parseDateIso(dateStr: string): Date {
 export function getMondayOfWeek(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
-  // Sunday is 0, Monday is 1, Saturday is 6
-  // Distance from Monday: if day is 0 (Sunday), diff is -6 days; otherwise 1 - day
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -33,15 +62,10 @@ export function getMondayOfWeek(date: Date): Date {
  */
 export function getWeekDays(baseDate: Date): Date[] {
   const monday = getMondayOfWeek(baseDate);
-  const days: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(monday);
-    day.setDate(monday.getDate() + i);
-    days.push(day);
-  }
-  return days;
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 }
 
+/** ISO 8601 week number */
 export function getWeekNumber(date: Date): number {
   const target = new Date(date.valueOf());
   const dayNr = (date.getDay() + 6) % 7;
@@ -54,37 +78,43 @@ export function getWeekNumber(date: Date): number {
   return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
 
-const VN_DAY_NAMES = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-const VN_SHORT_DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-
-export function getVietnameseDayName(date: Date | string, short = false): string {
-  const d = typeof date === 'string' ? parseDateIso(date) : date;
-  const dayIdx = d.getDay();
-  return short ? VN_SHORT_DAYS[dayIdx] : VN_DAY_NAMES[dayIdx];
+function toDate(date: Date | string): Date {
+  return typeof date === 'string' ? parseDateIso(date) : date;
 }
 
-export function formatVietnameseDate(date: Date | string): string {
-  const d = typeof date === 'string' ? parseDateIso(date) : date;
-  const dayName = VN_DAY_NAMES[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dayName}, ${dd}/${mm}/${yyyy}`;
+export function getDayName(date: Date | string, lang: Language, short = false): string {
+  return new Intl.DateTimeFormat(localeOf(lang), { weekday: short ? 'short' : 'long' }).format(toDate(date));
+}
+
+/** e.g. "Thứ Ba, 06/10/2026" / "Tuesday, 06/10/2026" */
+export function formatLongDate(date: Date | string, lang: Language): string {
+  const d = toDate(date);
+  const weekday = getDayName(d, lang);
+  const capitalized = weekday.charAt(0).toLocaleUpperCase(localeOf(lang)) + weekday.slice(1);
+  return `${capitalized}, ${formatShortDate(d)}/${d.getFullYear()}`;
+}
+
+export function formatMonthYear(date: Date, lang: Language): string {
+  const text = new Intl.DateTimeFormat(localeOf(lang), { month: 'long', year: 'numeric' }).format(date);
+  return text.charAt(0).toLocaleUpperCase(localeOf(lang)) + text.slice(1);
+}
+
+export function getMonthNames(lang: Language): string[] {
+  const fmt = new Intl.DateTimeFormat(localeOf(lang), { month: 'short' });
+  return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(2024, m, 1)));
+}
+
+/** Weekday names starting on Monday */
+export function getWeekdayNames(lang: Language, short = true): string[] {
+  const monday = new Date(2024, 0, 1); // 1 Jan 2024 is a Monday
+  return Array.from({ length: 7 }, (_, i) => getDayName(addDays(monday, i), lang, short));
 }
 
 export function formatShortDate(date: Date | string): string {
-  const d = typeof date === 'string' ? parseDateIso(date) : date;
+  const d = toDate(date);
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   return `${dd}/${mm}`;
-}
-
-export function getWeekRangeString(baseDate: Date): string {
-  const days = getWeekDays(baseDate);
-  const start = days[0];
-  const end = days[6];
-  const weekNum = getWeekNumber(baseDate);
-  return `${formatShortDate(start)} - ${formatShortDate(end)}/${end.getFullYear()} (Tuần ${weekNum})`;
 }
 
 export function isToday(dateIso: string): boolean {
@@ -92,32 +122,15 @@ export function isToday(dateIso: string): boolean {
 }
 
 export function isWeekendDay(date: Date | string): boolean {
-  const d = typeof date === 'string' ? parseDateIso(date) : date;
-  const day = d.getDay();
-  return day === 0 || day === 6; // Sunday or Saturday
-}
-
-export function formatDuration(totalMinutes: number): string {
-  if (!totalMinutes || totalMinutes <= 0) return '0m';
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = Math.round(totalMinutes % 60);
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}m`;
-}
-
-export function formatDurationHours(totalMinutes: number): string {
-  const hours = (totalMinutes / 60).toFixed(1);
-  return `${hours.endsWith('.0') ? hours.slice(0, -2) : hours}h`;
+  const day = toDate(date).getDay();
+  return day === 0 || day === 6;
 }
 
 export function minutesToHoursDecimal(totalMinutes: number): number {
   return Number((totalMinutes / 60).toFixed(1));
 }
 
-export function formatSecondsToTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+/** Formats hours without floating point noise: 7.5 -> "7.5", 8 -> "8" */
+export function formatHours(hours: number): string {
+  return String(Math.round(hours * 100) / 100);
 }

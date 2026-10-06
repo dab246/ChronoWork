@@ -1,32 +1,24 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  TimeEntry, 
-  DayLog, 
-  UserSettings, 
-  DayStatusType,
-  WeeklyObjective,
-  WeeklyReflections 
-} from './types';
-import { 
-  getStoredSettings, 
-  saveStoredSettings, 
-  getStoredEntries, 
-  saveStoredEntries, 
-  getStoredDayLogs, 
-  saveStoredDayLogs, 
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Plus } from 'lucide-react';
+import { TimeEntry, DayLog, UserSettings, DayStatusType, WeeklyObjective, WeeklyReflections } from './types';
+import {
+  getStoredSettings,
+  saveStoredSettings,
+  getStoredEntries,
+  saveStoredEntries,
+  getStoredDayLogs,
+  saveStoredDayLogs,
   getStoredObjectives,
   saveStoredObjectives,
   getStoredReflections,
   saveStoredReflections,
-  DEFAULT_PROJECTS 
+  newId,
 } from './utils/storage';
 import { formatDateIso, getWeekDays } from './utils/dateUtils';
-import { exportWeeklyTemplateCsv } from './utils/exportUtils';
+import { exportReport } from './report';
+import { I18nProvider, useI18n } from './i18n';
+import { FeedbackProvider, useFeedback } from './ui/feedback';
 
 import { Header, ActiveTab } from './components/Header';
 import { DayLogView } from './components/DayLogView';
@@ -37,158 +29,134 @@ import { PerformanceView } from './components/PerformanceView';
 import { ManualEntryModal } from './components/ManualEntryModal';
 import { DayStatusModal } from './components/DayStatusModal';
 import { SettingsModal } from './components/SettingsModal';
+import type { TaskDraft } from './components/TaskForm';
 
-export default function App() {
-  // Navigation tab: Default to daily log time cuối ngày
+/** Keeps a piece of state in sync with localStorage. */
+function usePersistentState<T>(load: () => T, save: (value: T) => unknown) {
+  const [value, setValue] = useState<T>(load);
+  useEffect(() => {
+    save(value);
+  }, [value, save]);
+  return [value, setValue] as const;
+}
+
+export default function App({ onReady }: { onReady?: () => void }) {
+  const [settings, setSettings] = usePersistentState<UserSettings>(getStoredSettings, saveStoredSettings);
+
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
+
+  return (
+    <I18nProvider lang={settings.language}>
+      <FeedbackProvider>
+        <Workspace settings={settings} setSettings={setSettings} />
+      </FeedbackProvider>
+    </I18nProvider>
+  );
+}
+
+interface WorkspaceProps {
+  settings: UserSettings;
+  setSettings: React.Dispatch<React.SetStateAction<UserSettings>>;
+}
+
+const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
+  const { t } = useI18n();
+  const { notify } = useFeedback();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
-
-  // Active date focus (for weekly navigation and daily view)
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
 
-  // Core Persistent State
-  const [settings, setSettings] = useState<UserSettings>(() => getStoredSettings());
-  const [entries, setEntries] = useState<TimeEntry[]>(() => getStoredEntries());
-  const [dayLogs, setDayLogs] = useState<Record<string, DayLog>>(() => getStoredDayLogs());
-  const [objectives, setObjectives] = useState<WeeklyObjective[]>(() => getStoredObjectives());
-  const [reflections, setReflections] = useState<WeeklyReflections>(() => getStoredReflections());
+  const [entries, setEntries] = usePersistentState<TimeEntry[]>(getStoredEntries, saveStoredEntries);
+  const [dayLogs, setDayLogs] = usePersistentState<Record<string, DayLog>>(getStoredDayLogs, saveStoredDayLogs);
+  const [objectives, setObjectives] = usePersistentState<WeeklyObjective[]>(getStoredObjectives, saveStoredObjectives);
+  const [reflections, setReflections] = usePersistentState<WeeklyReflections>(getStoredReflections, saveStoredReflections);
 
-  // Modals state
-  const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [newTaskDefaultDate, setNewTaskDefaultDate] = useState<string>(formatDateIso(new Date()));
-
-  const [isDayStatusModalOpen, setIsDayStatusModalOpen] = useState(false);
-  const [activeDayStatusDate, setActiveDayStatusDate] = useState<string>(formatDateIso(new Date()));
-
+  const [taskModal, setTaskModal] = useState<{ open: boolean; entry: TimeEntry | null; date: string }>({
+    open: false,
+    entry: null,
+    date: formatDateIso(new Date()),
+  });
+  const [dayStatusDate, setDayStatusDate] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Sync state to LocalStorage
-  useEffect(() => {
-    saveStoredSettings(settings);
-  }, [settings]);
-
-  useEffect(() => {
-    saveStoredEntries(entries);
-  }, [entries]);
-
-  useEffect(() => {
-    saveStoredDayLogs(dayLogs);
-  }, [dayLogs]);
-
-  useEffect(() => {
-    saveStoredObjectives(objectives);
-  }, [objectives]);
-
-  useEffect(() => {
-    saveStoredReflections(reflections);
-  }, [reflections]);
-
-  // Dynamic projects list (combine defaults with any custom project used in entries)
+  // Projects offered in the task forms: every project already used, most recent first
   const projectList = useMemo(() => {
-    const set = new Set<string>(DEFAULT_PROJECTS);
-    entries.forEach((e) => {
-      if (e.project) set.add(e.project);
-    });
-    return Array.from(set);
+    const seen = new Set<string>();
+    [...entries].sort((a, b) => b.createdAt - a.createdAt).forEach((e) => e.project && seen.add(e.project));
+    return Array.from(seen);
   }, [entries]);
 
-  // Week navigation helpers
-  const handlePrevWeek = () => {
-    const d = new Date(currentDate);
-    d.setDate(d.getDate() - 7);
-    setCurrentDate(d);
+  const handleSaveEntry = useCallback(
+    (draft: TaskDraft, editingId?: string) => {
+      if (editingId) {
+        setEntries((prev) => prev.map((item) => (item.id === editingId ? { ...item, ...draft } : item)));
+        notify(t.dayLog.updated);
+      } else {
+        setEntries((prev) => [{ ...draft, id: newId('task'), createdAt: Date.now() }, ...prev]);
+        notify(t.dayLog.saved);
+      }
+    },
+    [setEntries, notify, t]
+  );
+
+  const handleDeleteEntry = useCallback(
+    (id: string) => {
+      setEntries((prev) => prev.filter((item) => item.id !== id));
+      notify(t.dayLog.deleted, { tone: 'info' });
+    },
+    [setEntries, notify, t]
+  );
+
+  const handleUpdateEntry = useCallback(
+    (entry: TimeEntry) => setEntries((prev) => prev.map((e) => (e.id === entry.id ? entry : e))),
+    [setEntries]
+  );
+
+  const handleSaveDayLog = (log: DayLog) => {
+    setDayLogs((prev) => ({ ...prev, [log.date]: log }));
+    notify(t.dayStatusModal.saved);
   };
 
-  const handleNextWeek = () => {
-    const d = new Date(currentDate);
-    d.setDate(d.getDate() + 7);
-    setCurrentDate(d);
+  /** Quick status change keeps the note and check-in times; the target hours follow the new status. */
+  const handleUpdateDayStatus = useCallback(
+    (dateIso: string, status: DayStatusType) => {
+      setDayLogs((prev) => {
+        const { targetHours: _resetTarget, ...rest } = prev[dateIso] ?? { date: dateIso, status };
+        return { ...prev, [dateIso]: { ...rest, date: dateIso, status } };
+      });
+    },
+    [setDayLogs]
+  );
+
+  const handleResetWeekToDefault = (weekDays: Date[]) => {
+    setDayLogs((prev) => {
+      const updated = { ...prev };
+      weekDays.slice(0, 5).forEach((d) => delete updated[formatDateIso(d)]);
+      return updated;
+    });
   };
 
-  const handleResetToCurrentWeek = () => {
-    setCurrentDate(new Date());
-  };
+  const openNewTaskModal = (dateIso?: string) => setTaskModal({ open: true, entry: null, date: dateIso || formatDateIso(currentDate) });
+  const openEditTaskModal = (entry: TimeEntry) => setTaskModal({ open: true, entry, date: entry.date });
 
-  // CRUD Handlers for Time Entries
-  const handleSaveEntry = (entryData: Omit<TimeEntry, 'id' | 'createdAt'>, editingId?: string) => {
-    if (editingId) {
-      setEntries((prev) =>
-        prev.map((item) => (item.id === editingId ? { ...item, ...entryData } : item))
-      );
-    } else {
-      const newEntry: TimeEntry = {
-        ...entryData,
-        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        createdAt: Date.now(),
-      };
-      setEntries((prev) => [newEntry, ...prev]);
+  const handleQuickExport = async () => {
+    try {
+      const file = await exportReport('csv', {
+        weekDays: getWeekDays(currentDate),
+        entries,
+        dayLogs,
+        settings,
+        objectives,
+        reflections,
+      });
+      notify(t.report.exported(file));
+    } catch {
+      notify(t.report.exportFailed, { tone: 'error' });
     }
   };
 
-  const handleDeleteEntry = (id: string) => {
-    setEntries((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  // Day Log Handlers
-  const handleSaveDayLog = (log: DayLog) => {
-    setDayLogs((prev) => ({
-      ...prev,
-      [log.date]: log,
-    }));
-  };
-
-  const handleUpdateDayStatus = (dateIso: string, status: DayStatusType) => {
-    setDayLogs((prev) => ({
-      ...prev,
-      [dateIso]: {
-        date: dateIso,
-        status,
-        note: prev[dateIso]?.note,
-      },
-    }));
-  };
-
-  // Reset week's Mon-Fri to default office days
-  const handleResetWeekToDefault = (weekDays: Date[]) => {
-    const updated = { ...dayLogs };
-    weekDays.slice(0, 5).forEach((d) => {
-      const iso = formatDateIso(d);
-      const dayNum = d.getDay();
-      const isOffice = settings.defaultOfficeDays.includes(dayNum);
-      updated[iso] = {
-        date: iso,
-        status: isOffice ? 'work' : 'wfh',
-        note: isOffice ? 'Văn phòng' : 'Làm từ xa',
-      };
-    });
-    setDayLogs(updated);
-  };
-
-  // Modal openers
-  const openNewTaskModal = (dateIso?: string) => {
-    setEditingEntry(null);
-    setNewTaskDefaultDate(dateIso || formatDateIso(currentDate));
-    setIsNewTaskModalOpen(true);
-  };
-
-  const openEditTaskModal = (entry: TimeEntry) => {
-    setEditingEntry(entry);
-    setNewTaskDefaultDate(entry.date);
-    setIsNewTaskModalOpen(true);
-  };
-
-  const openDayStatusModal = (dateIso: string) => {
-    setActiveDayStatusDate(dateIso);
-    setIsDayStatusModalOpen(true);
-  };
-
-  // Quick export CSV handler for top bar
-  const handleQuickExport = () => {
-    const weekDays = getWeekDays(currentDate);
-    exportWeeklyTemplateCsv(weekDays, entries, dayLogs, settings, objectives, reflections);
-  };
-
-  // Reload data from storage after restore / demo seed
   const handleRefreshData = () => {
     setSettings(getStoredSettings());
     setEntries(getStoredEntries());
@@ -197,10 +165,10 @@ export default function App() {
     setReflections(getStoredReflections());
   };
 
+  const weekProps = { currentDate, onChangeDate: setCurrentDate, entries, dayLogs, settings };
+
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col font-sans selection:bg-neutral-900 selection:text-white">
-      
-      {/* Top Application Bar */}
+    <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-950">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -208,131 +176,101 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onQuickExport={handleQuickExport}
         settings={settings}
-        onSelectLanguage={(newLang) => {
-          const updated = { ...settings, language: newLang };
-          setSettings(updated);
-          saveStoredSettings(updated);
-        }}
+        onSelectLanguage={(language) => setSettings((prev) => ({ ...prev, language }))}
       />
 
-      {/* Main Workspace Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        
-        {/* Tab 1: Log time cuối ngày trước khi ra về */}
-        {activeTab === 'daily' && (
-          <DayLogView
-            selectedDate={currentDate}
-            setSelectedDate={setCurrentDate}
-            entries={entries}
-            dayLogs={dayLogs}
-            settings={settings}
-            projects={projectList}
-            onSaveTask={handleSaveEntry}
-            onDeleteTask={handleDeleteEntry}
-            onSetDayStatus={handleUpdateDayStatus}
-          />
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+          >
+            {activeTab === 'daily' && (
+              <DayLogView
+                selectedDate={currentDate}
+                setSelectedDate={setCurrentDate}
+                entries={entries}
+                dayLogs={dayLogs}
+                settings={settings}
+                projects={projectList}
+                onSaveTask={handleSaveEntry}
+                onDeleteTask={handleDeleteEntry}
+                onSetDayStatus={handleUpdateDayStatus}
+              />
+            )}
 
-        {/* Tab 2: Báo cáo tuần chuẩn LINAGORA Vietnam */}
-        {activeTab === 'report' && (
-          <WeeklyReportView
-            currentDate={currentDate}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
-            onResetToCurrentWeek={handleResetToCurrentWeek}
-            entries={entries}
-            dayLogs={dayLogs}
-            settings={settings}
-            objectives={objectives}
-            setObjectives={setObjectives}
-            reflections={reflections}
-            setReflections={setReflections}
-            onUpdateDayStatus={handleUpdateDayStatus}
-            onResetWeekToDefault={handleResetWeekToDefault}
-            onUpdateEntry={(entry) =>
-              setEntries((prev) => prev.map((e) => (e.id === entry.id ? entry : e)))
-            }
-          />
-        )}
+            {activeTab === 'report' && (
+              <WeeklyReportView
+                {...weekProps}
+                objectives={objectives}
+                setObjectives={setObjectives}
+                reflections={reflections}
+                setReflections={setReflections}
+                onUpdateDayStatus={handleUpdateDayStatus}
+                onResetWeekToDefault={handleResetWeekToDefault}
+                onUpdateEntry={handleUpdateEntry}
+              />
+            )}
 
-        {/* Tab 3: Bảng chấm công tuần */}
-        {activeTab === 'timesheet' && (
-          <WeeklyTimesheetView
-            currentDate={currentDate}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
-            onResetToCurrentWeek={handleResetToCurrentWeek}
-            entries={entries}
-            dayLogs={dayLogs}
-            settings={settings}
-            onOpenNewTaskForDay={(dateIso) => openNewTaskModal(dateIso)}
-            onEditTask={(entry) => openEditTaskModal(entry)}
-            onOpenDayStatusModal={(dateIso) => openDayStatusModal(dateIso)}
-          />
-        )}
+            {activeTab === 'timesheet' && (
+              <WeeklyTimesheetView
+                {...weekProps}
+                onOpenNewTaskForDay={openNewTaskModal}
+                onEditTask={openEditTaskModal}
+                onOpenDayStatusModal={setDayStatusDate}
+              />
+            )}
 
-        {/* Tab 4: Lịch ngày công & ngày nghỉ */}
-        {activeTab === 'calendar' && (
-          <CalendarLeaveView
-            dayLogs={dayLogs}
-            onOpenDayStatusModal={(dateIso) => openDayStatusModal(dateIso)}
-            onQuickSetStatus={handleUpdateDayStatus}
-            settings={settings}
-          />
-        )}
+            {activeTab === 'calendar' && (
+              <CalendarLeaveView dayLogs={dayLogs} settings={settings} onOpenDayStatusModal={setDayStatusDate} />
+            )}
 
-        {/* Tab 5: Phân tích hiệu suất cá nhân */}
-        {activeTab === 'performance' && (
-          <PerformanceView
-            currentDate={currentDate}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
-            onResetToCurrentWeek={handleResetToCurrentWeek}
-            entries={entries}
-            dayLogs={dayLogs}
-            settings={settings}
-          />
-        )}
+            {activeTab === 'performance' && <PerformanceView {...weekProps} />}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="no-print border-t border-neutral-200 bg-white py-4 text-xs text-neutral-500 text-center">
+      <footer className="no-print border-t border-neutral-200 bg-white py-4 text-xs text-neutral-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>{settings.companyName} · Weekly Task Tracker & Timesheet Report</span>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="hover:text-neutral-900 transition-colors"
-            >
-              Cài đặt & Tùy chỉnh
-            </button>
-            <button
-              onClick={handleQuickExport}
-              className="hover:text-neutral-900 transition-colors"
-            >
-              Xuất CSV Báo Cáo
-            </button>
-          </div>
+          <span>
+            {settings.companyName ? `${settings.companyName} · ` : ''}
+            {t.common.appName} – {t.footer.tagline}
+          </span>
+          <span>{t.footer.localData}</span>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Floating action button on small screens */}
+      <motion.button
+        type="button"
+        onClick={() => openNewTaskModal()}
+        aria-label={t.header.addTask}
+        whileTap={{ scale: 0.92 }}
+        className="no-print md:hidden fixed right-4 bottom-20 z-30 w-14 h-14 rounded-2xl bg-indigo-600 text-white elevation-3 flex items-center justify-center"
+      >
+        <Plus className="w-6 h-6" />
+      </motion.button>
+
       <ManualEntryModal
-        isOpen={isNewTaskModalOpen}
-        onClose={() => setIsNewTaskModalOpen(false)}
+        isOpen={taskModal.open}
+        onClose={() => setTaskModal((m) => ({ ...m, open: false }))}
         onSave={handleSaveEntry}
         onDelete={handleDeleteEntry}
-        editingEntry={editingEntry}
+        editingEntry={taskModal.entry}
         projects={projectList}
-        defaultDate={newTaskDefaultDate}
+        defaultDate={taskModal.date}
         settings={settings}
       />
 
       <DayStatusModal
-        isOpen={isDayStatusModalOpen}
-        onClose={() => setIsDayStatusModalOpen(false)}
-        dateIso={activeDayStatusDate}
-        currentDayLog={dayLogs[activeDayStatusDate]}
+        isOpen={dayStatusDate !== null}
+        onClose={() => setDayStatusDate(null)}
+        dateIso={dayStatusDate ?? formatDateIso(new Date())}
+        currentDayLog={dayStatusDate ? dayLogs[dayStatusDate] : undefined}
+        settings={settings}
         onSaveDayLog={handleSaveDayLog}
       />
 
@@ -343,7 +281,6 @@ export default function App() {
         onSaveSettings={setSettings}
         onRefreshData={handleRefreshData}
       />
-
     </div>
   );
-}
+};
