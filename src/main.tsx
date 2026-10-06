@@ -17,5 +17,30 @@ function hideSplash() {
   }, wait);
 }
 
-installRipple();
-createRoot(document.getElementById('root')!).render(<App onReady={hideSplash} />);
+function isFramed(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // cross-origin parent
+  }
+}
+
+/**
+ * Static hosts like GitHub Pages cannot send frame-ancestors / X-Frame-Options,
+ * so the app refuses to run inside a frame (clickjacking) and links to itself instead.
+ */
+function showOpenLink() {
+  const link = document.createElement('a');
+  link.href = window.location.href;
+  link.target = '_top';
+  link.rel = 'noopener';
+  link.textContent = 'Open ChronoWork';
+  document.body.replaceChildren(link);
+}
+
+if (isFramed()) {
+  showOpenLink();
+} else {
+  installRipple();
+  createRoot(document.getElementById('root')!).render(<App onReady={hideSplash} />);
+}

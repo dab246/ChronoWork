@@ -54,8 +54,28 @@ Good to know:
 
 The reasoning behind this setup is in [ADR-0001: Local development environment](docs/adr/0001-local-development-environment.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
+## Deployment (GitHub Pages)
+
+Live at **https://dab246.github.io/ChronoWork/**.
+
+Every push to `main` runs [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml): locked install with Bun, type check, unit tests, production build, then deploy. It can also be started by hand from the Actions tab ("Run workflow").
+
+One-time setup: the repository must be public (or on a paid plan), and **Settings → Pages → Source** must be set to **GitHub Actions**.
+
+The app is served from a sub-path, set at build time through `BASE_PATH` (the workflow takes it from the Pages configuration, so it becomes `/` with a custom domain). To check a sub-path build locally:
+
+```bash
+BASE_PATH=/ChronoWork/ npm run build
+BASE_PATH=/ChronoWork/ npm run preview   # http://localhost:4173/ChronoWork/
+```
+
+Things to know about this host:
+
+- **Shared origin:** every site under `dab246.github.io` shares one origin, so they share `localStorage`, including ChronoWork's data and GitHub token. Only publish trusted pages there, or give ChronoWork its own origin with a custom domain.
+- **No HTTP headers:** GitHub Pages cannot send custom headers. The CSP is embedded as a meta tag, and the app refuses to run inside a frame (`src/main.tsx`) because `frame-ancestors` / `X-Frame-Options` cannot be set.
+
 ## Security notes
 
-- The production build ships a strict Content-Security-Policy (see `vite.config.ts`). When hosting, also send `frame-ancestors 'none'` (or `X-Frame-Options: DENY`) as an HTTP header — it cannot be set from a meta tag.
+- The production build ships a strict Content-Security-Policy (see `vite.config.ts`). On hosts that support headers, also send `frame-ancestors 'none'` (or `X-Frame-Options: DENY`): it cannot be set from a meta tag. The app additionally refuses to run inside a frame.
 - A GitHub token is optional, kept in this browser only and never written to backups. Use a read-only fine-grained token.
 - Imported backups are validated and sanitized; links are restricted to `http(s)`; spreadsheet exports neutralize formulas.
