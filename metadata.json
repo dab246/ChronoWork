@@ -1,0 +1,6 @@
+{
+  "name": "ChronoWork - Nhật Ký Giờ Làm & Báo Cáo Hiệu Suất",
+  "description": "Ứng dụng log time làm việc hàng ngày, quản lý ngày công và ngày nghỉ, theo dõi hiệu suất cá nhân và xuất báo cáo tuần chi tiết.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
