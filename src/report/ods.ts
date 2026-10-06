@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { REPORT_STYLES, cellText, toGrid, type CellStyle, type CellStyleKey, type ReportCell, type ReportSheet } from './model';
+import { REPORT_STYLES, cellText, toGrid, type CellStyle, type CellStyleKey, type GridSlot, type ReportCell, type ReportLogo, type ReportSheet } from './model';
 
 const NS = [
   'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"',
@@ -34,7 +34,14 @@ function paragraphs(text: string, link?: string): string {
 
 const ALIGN = { left: 'start', center: 'center', right: 'end' } as const;
 
-function cellStyleXml(name: string, style: CellStyle, dataStyle?: string): string {
+type PercentFormat = NonNullable<ReportCell['format']>;
+const PERCENT_DECIMALS: Record<PercentFormat, number> = { pct2: 2, pct0: 0 };
+
+const styleName = (key: CellStyleKey, format?: PercentFormat) => `ce_${key}${format ? `_${format}` : ''}`;
+const dataStyleName = (format: PercentFormat) => `N_${format}`;
+
+function cellStyleXml(key: CellStyleKey, format?: PercentFormat): string {
+  const style: CellStyle = REPORT_STYLES[key];
   const cellProps = [
     style.bg ? `fo:background-color="${style.bg}"` : '',
     style.border ? `fo:border="0.74pt solid ${style.border}"` : 'fo:border="none"',
@@ -52,7 +59,7 @@ function cellStyleXml(name: string, style: CellStyle, dataStyle?: string): strin
       : 'style:text-underline-style="none"',
   ].join(' ');
   return (
-    `<style:style style:name="${name}" style:family="table-cell" style:parent-style-name="Default"${dataStyle ? ` style:data-style-name="${dataStyle}"` : ''}>` +
+    `<style:style style:name="${styleName(key, format)}" style:family="table-cell" style:parent-style-name="Default"${format ? ` style:data-style-name="${dataStyleName(format)}"` : ''}>` +
     `<style:table-cell-properties ${cellProps}/>` +
     `<style:paragraph-properties fo:text-align="${ALIGN[style.h]}"/>` +
     `<style:text-properties ${textProps}/>` +
@@ -60,7 +67,10 @@ function cellStyleXml(name: string, style: CellStyle, dataStyle?: string): strin
   );
 }
 
-const styleName = (key: CellStyleKey, format?: ReportCell['format']) => `ce_${key}${format ? `_${format}` : ''}`;
+function percentStyleXml(format: PercentFormat): string {
+  const decimals = PERCENT_DECIMALS[format];
+  return `<number:percentage-style style:name="${dataStyleName(format)}"><number:number number:decimal-places="${decimals}" number:min-decimal-places="${decimals}" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>`;
+}
 
 function automaticStyles(sheet: ReportSheet, heights: number[]): string {
   const columns = sheet.columns
@@ -69,61 +79,64 @@ function automaticStyles(sheet: ReportSheet, heights: number[]): string {
   const rows = heights
     .map((h, i) => `<style:style style:name="ro${i}" style:family="table-row"><style:table-row-properties style:row-height="${h}pt" fo:break-before="auto" style:use-optimal-row-height="false"/></style:style>`)
     .join('');
-  const percent = (name: string, decimals: number) =>
-    `<number:percentage-style style:name="${name}"><number:number number:decimal-places="${decimals}" number:min-decimal-places="${decimals}" number:min-integer-digits="1"/><number:text>%</number:text></number:percentage-style>`;
   const cells = (Object.keys(REPORT_STYLES) as CellStyleKey[])
-    .flatMap((key) => [
-      cellStyleXml(styleName(key), REPORT_STYLES[key]),
-      cellStyleXml(styleName(key, 'pct2'), REPORT_STYLES[key], 'N_pct2'),
-      cellStyleXml(styleName(key, 'pct0'), REPORT_STYLES[key], 'N_pct0'),
-    ])
+    .flatMap((key) => [cellStyleXml(key), cellStyleXml(key, 'pct2'), cellStyleXml(key, 'pct0')])
     .join('');
   return (
     '<office:automatic-styles>' +
     columns +
     rows +
     '<style:style style:name="ta1" style:family="table" style:master-page-name="Default"><style:table-properties table:display="true" style:writing-mode="lr-tb"/></style:style>' +
-    percent('N_pct2', 2) +
-    percent('N_pct0', 0) +
+    percentStyleXml('pct2') +
+    percentStyleXml('pct0') +
     cells +
     '<style:style style:name="gr1" style:family="graphic"><style:graphic-properties draw:stroke="none" draw:fill="none" style:wrap="none"/></style:style>' +
     '</office:automatic-styles>'
   );
 }
 
-function cellXml(cell: ReportCell, logoXml: string): string {
-  const spans =
-    (cell.colSpan ?? 1) > 1 || (cell.rowSpan ?? 1) > 1
-      ? ` table:number-columns-spanned="${cell.colSpan ?? 1}" table:number-rows-spanned="${cell.rowSpan ?? 1}"`
-      : '';
-  const style = ` table:style-name="${styleName(cell.style, cell.format)}"`;
-  if (typeof cell.value === 'number' && cell.format) {
-    return `<table:table-cell${style}${spans} office:value-type="percentage" office:value="${cell.value}">${paragraphs(cellText(cell))}${logoXml}</table:table-cell>`;
-  }
-  if (typeof cell.value === 'number') {
-    return `<table:table-cell${style}${spans} office:value-type="float" office:value="${cell.value}">${paragraphs(String(cell.value))}${logoXml}</table:table-cell>`;
-  }
-  if (cell.value === '' && !logoXml) return `<table:table-cell${style}${spans}/>`;
-  return `<table:table-cell${style}${spans} office:value-type="string">${cell.value ? paragraphs(cell.value, cell.link) : ''}${logoXml}</table:table-cell>`;
+function spanAttrs(cell: ReportCell): string {
+  const cols = cell.colSpan ?? 1;
+  const rows = cell.rowSpan ?? 1;
+  return cols * rows > 1 ? ` table:number-columns-spanned="${cols}" table:number-rows-spanned="${rows}"` : '';
 }
 
-function contentXml(sheet: ReportSheet, logoPath?: string): string {
-  const grid = toGrid(sheet);
-  const heights = sheet.rows.map((r) => r.height);
-  const logoXml =
-    sheet.logo && logoPath
-      ? `<draw:frame draw:z-index="0" draw:name="Logo" draw:style-name="gr1" svg:width="${(sheet.logo.width / 96).toFixed(4)}in" svg:height="${(sheet.logo.height / 96).toFixed(4)}in" svg:x="0in" svg:y="0in"><draw:image xlink:href="${logoPath}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"><text:p/></draw:image></draw:frame>`
-      : '';
+function valueXml(cell: ReportCell): { attrs: string; body: string } {
+  if (typeof cell.value === 'number') {
+    const type = cell.format ? 'percentage' : 'float';
+    return { attrs: ` office:value-type="${type}" office:value="${cell.value}"`, body: paragraphs(cellText(cell)) };
+  }
+  return { attrs: ' office:value-type="string"', body: cell.value ? paragraphs(cell.value, cell.link) : '' };
+}
 
-  const rowsXml = grid
+function cellXml(cell: ReportCell, logoXml: string): string {
+  const open = `<table:table-cell table:style-name="${styleName(cell.style, cell.format)}"${spanAttrs(cell)}`;
+  if (cell.value === '' && !logoXml) return `${open}/>`;
+  const { attrs, body } = valueXml(cell);
+  return `${open}${attrs}>${body}${logoXml}</table:table-cell>`;
+}
+
+function slotXml(slot: GridSlot, logoXml: string): string {
+  if (slot.cell) return cellXml(slot.cell, logoXml);
+  if (slot.coveredBy) return `<table:covered-table-cell table:style-name="${styleName(slot.coveredBy.style)}"/>`;
+  return logoXml ? `<table:table-cell>${logoXml}</table:table-cell>` : '<table:table-cell/>';
+}
+
+const logoPath = (logo: ReportLogo) => `Pictures/logo.${logo.mime === 'image/jpeg' ? 'jpg' : 'png'}`;
+
+function logoFrameXml(logo?: ReportLogo): string {
+  if (!logo) return '';
+  const width = (logo.width / 96).toFixed(4);
+  const height = (logo.height / 96).toFixed(4);
+  return `<draw:frame draw:z-index="0" draw:name="Logo" draw:style-name="gr1" svg:width="${width}in" svg:height="${height}in" svg:x="0in" svg:y="0in"><draw:image xlink:href="${logoPath(logo)}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"><text:p/></draw:image></draw:frame>`;
+}
+
+function contentXml(sheet: ReportSheet): string {
+  const heights = sheet.rows.map((r) => r.height);
+  const logoXml = logoFrameXml(sheet.logo);
+  const rowsXml = toGrid(sheet)
     .map((slots, r) => {
-      const cells = slots
-        .map((slot, c) => {
-          if (slot.cell) return cellXml(slot.cell, r === 0 && c === 0 ? logoXml : '');
-          if (slot.coveredBy) return `<table:covered-table-cell table:style-name="${styleName(slot.coveredBy.style)}"/>`;
-          return r === 0 && c === 0 && logoXml ? `<table:table-cell>${logoXml}</table:table-cell>` : '<table:table-cell/>';
-        })
-        .join('');
+      const cells = slots.map((slot, c) => slotXml(slot, r + c === 0 ? logoXml : '')).join('');
       return `<table:table-row table:style-name="ro${r}">${cells}</table:table-row>`;
     })
     .join('');
@@ -167,7 +180,7 @@ function metaXml(author: string): string {
   );
 }
 
-function manifestXml(logoPath?: string, logoMime?: string): string {
+function manifestXml(logo?: ReportLogo): string {
   return (
     '<?xml version="1.0" encoding="UTF-8"?>' +
     '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">' +
@@ -175,7 +188,7 @@ function manifestXml(logoPath?: string, logoMime?: string): string {
     '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>' +
     '<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>' +
     '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>' +
-    (logoPath ? `<manifest:file-entry manifest:full-path="${logoPath}" manifest:media-type="${logoMime}"/>` : '') +
+    (logo ? `<manifest:file-entry manifest:full-path="${logoPath(logo)}" manifest:media-type="${logo.mime}"/>` : '') +
     '</manifest:manifest>'
   );
 }
@@ -185,16 +198,12 @@ export async function renderOds(sheet: ReportSheet, author: string): Promise<Blo
   // The mimetype entry must come first and be stored uncompressed.
   zip.file('mimetype', MIME, { compression: 'STORE' });
 
-  let logoPath: string | undefined;
-  if (sheet.logo) {
-    logoPath = `Pictures/logo.${sheet.logo.mime === 'image/jpeg' ? 'jpg' : 'png'}`;
-    zip.file(logoPath, sheet.logo.dataUrl.split(',')[1], { base64: true });
-  }
+  if (sheet.logo) zip.file(logoPath(sheet.logo), sheet.logo.dataUrl.split(',')[1], { base64: true });
 
-  zip.file('content.xml', contentXml(sheet, logoPath));
+  zip.file('content.xml', contentXml(sheet));
   zip.file('styles.xml', STYLES_XML);
   zip.file('meta.xml', metaXml(author));
-  zip.file('META-INF/manifest.xml', manifestXml(logoPath, sheet.logo?.mime));
+  zip.file('META-INF/manifest.xml', manifestXml(sheet.logo));
 
   return zip.generateAsync({ type: 'blob', mimeType: MIME, compression: 'DEFLATE' });
 }

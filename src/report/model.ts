@@ -4,11 +4,11 @@
  * identical to the company template layout.
  */
 import type { DayLog, Language, TimeEntry, UserSettings, WeeklyObjective, WeeklyReflections } from '../types';
-import { getTranslations } from '../i18n';
+import { getTranslations, type Translations } from '../i18n';
 import { formatHours, formatShortDate, getWeekNumber } from '../utils/dateUtils';
 import { fileNamePart, safeUrl } from '../utils/security';
 import { filterEntriesForDays, getWorkingAndOffDaysInfo } from '../utils/workdays';
-import { aggregateWeeklyTasks } from './aggregate';
+import { aggregateWeeklyTasks, type AggregatedTask } from './aggregate';
 
 export const REPORT_COLORS = {
   banner: '#5226E0',
@@ -117,8 +117,9 @@ export interface ReportInput {
   logoSize?: { width: number; height: number };
 }
 
+/** Language of the report and its exports: English unless another one is chosen in Settings. */
 export function reportLanguage(settings: UserSettings): Language {
-  return settings.reportLanguage ?? settings.language;
+  return settings.reportLanguage ?? 'en';
 }
 
 /** Approximate wrapped line count, used to size rows that hold long text. */
@@ -142,107 +143,105 @@ function buildLogo(settings: UserSettings, size?: { width: number; height: numbe
   return { dataUrl, mime, width, height: Math.round(width / ratio) };
 }
 
-export function buildReportSheet(input: ReportInput): ReportSheet {
-  const { weekDays, settings, objectives, reflections } = input;
-  const lang = reportLanguage(settings);
-  const r = getTranslations(lang).reportDoc;
+type ReportText = Translations['reportDoc'];
+type WorkingInfo = ReturnType<typeof getWorkingAndOffDaysInfo>;
 
+const row = (height: number, cells: ReportCell[] = []): ReportRow => ({ height, cells });
+const emptyCells = (cols: number[]): ReportCell[] => cols.map((col) => ({ col, value: '', style: 'text' }));
+
+function headerRows(r: ReportText, weekDays: Date[], settings: UserSettings, info: WorkingInfo): ReportRow[] {
   const weekNum = getWeekNumber(weekDays[0]);
-  const startStr = formatShortDate(weekDays[0]);
-  const endStr = formatShortDate(weekDays[4]);
-  const tasks = aggregateWeeklyTasks(filterEntriesForDays(input.entries, weekDays));
-  const info = getWorkingAndOffDaysInfo(weekDays, input.dayLogs, settings);
+  const week = r.weekFromTo(weekNum, formatShortDate(weekDays[0]), formatShortDate(weekDays[4]));
+  const infoRow = (height: number, label: string, value: string) =>
+    row(height, [
+      { col: 0, value: label, style: 'infoLabel' },
+      { col: 1, value: '', style: 'infoFill' },
+      { col: 2, value, style: 'infoValue', colSpan: 2 },
+    ]);
+  return [
+    row(50.3, [{ col: 0, value: `${r.reportTitle}\n${week}`, style: 'title', colSpan: 9 }]),
+    row(25.5, [{ col: 0, value: r.employeeNameRole(settings.userName, settings.userRole), style: 'employee', colSpan: 9 }]),
+    infoRow(29.3, r.daysOffLabel, r.daysOffText(info.daysOffCount, info.daysOffDatesText)),
+    infoRow(22.5, r.officeDaysLabel, r.officeDaysText(info.officeDaysCount, info.officeDatesText)),
+    row(17.3),
+  ];
+}
 
-  const rows: ReportRow[] = [];
-  const push = (height: number, cells: ReportCell[] = []) => rows.push({ height, cells });
+function tableHeaderRows(r: ReportText): ReportRow[] {
+  return [
+    row(30.8, [{ col: 0, value: r.completedWorkHeader, style: 'banner', colSpan: 9 }]),
+    row(18, [
+      { col: 0, value: r.colNo, style: 'head', rowSpan: 2 },
+      { col: 1, value: r.colProject, style: 'head', rowSpan: 2 },
+      { col: 2, value: r.colDesc, style: 'head', rowSpan: 2 },
+      { col: 3, value: r.colTime, style: 'head', rowSpan: 2 },
+      { col: 4, value: r.colResult, style: 'head', colSpan: 2 },
+      { col: 6, value: r.colGap, style: 'head', colSpan: 2 },
+      { col: 8, value: r.colRemark, style: 'head', rowSpan: 2 },
+    ]),
+    row(15.8, [
+      { col: 4, value: r.colCompletion, style: 'head' },
+      { col: 5, value: r.colGapPct, style: 'head' },
+      { col: 6, value: r.colReason, style: 'head' },
+      { col: 7, value: r.colSolution, style: 'head' },
+    ]),
+  ];
+}
 
-  // Rows 1-4: title, employee, days off, office days
-  push(50.3, [{ col: 0, value: `${r.reportTitle}\n${r.weekFromTo(weekNum, startStr, endStr)}`, style: 'title', colSpan: 9 }]);
-  push(25.5, [{ col: 0, value: r.employeeNameRole(settings.userName, settings.userRole), style: 'employee', colSpan: 9 }]);
-  push(29.3, [
-    { col: 0, value: r.daysOffLabel, style: 'infoLabel' },
-    { col: 1, value: '', style: 'infoFill' },
-    { col: 2, value: r.daysOffText(info.daysOffCount, info.daysOffDatesText), style: 'infoValue', colSpan: 2 },
-  ]);
-  push(22.5, [
-    { col: 0, value: r.officeDaysLabel, style: 'infoLabel' },
-    { col: 1, value: '', style: 'infoFill' },
-    { col: 2, value: r.officeDaysText(info.officeDaysCount, info.officeDatesText), style: 'infoValue', colSpan: 2 },
-  ]);
-  push(17.3);
+function placeholderTaskRow(index: number): ReportRow {
+  return row(17, [{ col: 0, value: index + 1, style: 'no' }, { col: 1, value: '', style: 'task' }, ...emptyCells([2, 3, 4, 5, 6, 7, 8])]);
+}
 
-  // Rows 6-8: banner and table header
-  push(30.8, [{ col: 0, value: r.completedWorkHeader, style: 'banner', colSpan: 9 }]);
-  push(18, [
-    { col: 0, value: r.colNo, style: 'head', rowSpan: 2 },
-    { col: 1, value: r.colProject, style: 'head', rowSpan: 2 },
-    { col: 2, value: r.colDesc, style: 'head', rowSpan: 2 },
-    { col: 3, value: r.colTime, style: 'head', rowSpan: 2 },
-    { col: 4, value: r.colResult, style: 'head', colSpan: 2 },
-    { col: 6, value: r.colGap, style: 'head', colSpan: 2 },
-    { col: 8, value: r.colRemark, style: 'head', rowSpan: 2 },
+function taskRow(task: AggregatedTask, index: number, texts: Translations): ReportRow {
+  const url = safeUrl(task.url);
+  const activity = task.activitiesDescription;
+  const description: ReportCell = url ? { col: 2, value: texts.common.link, link: url, style: 'link' } : { col: 2, value: activity, style: 'center' };
+  const gap: ReportCell = task.gapPct > 0 ? { col: 5, value: task.gapPct / 100, format: 'pct0', style: 'text' } : { col: 5, value: '', style: 'text' };
+  const height = textRowHeight(24, [
+    [task.label, 1],
+    [task.gapReason, 6],
+    [task.gapSolution, 7],
+    [task.remark, 8],
+    [url ? '' : activity, 2],
   ]);
-  push(15.8, [
-    { col: 4, value: r.colCompletion, style: 'head' },
-    { col: 5, value: r.colGapPct, style: 'head' },
-    { col: 6, value: r.colReason, style: 'head' },
-    { col: 7, value: r.colSolution, style: 'head' },
+  return row(height, [
+    { col: 0, value: index + 1, style: 'no' },
+    { col: 1, value: task.label, style: 'task' },
+    description,
+    { col: 3, value: `${formatHours(task.hours)}h`, style: 'right' },
+    { col: 4, value: task.completionPct / 100, format: 'pct2', style: 'right' },
+    gap,
+    { col: 6, value: task.gapReason, style: 'text' },
+    { col: 7, value: task.gapSolution, style: 'text' },
+    { col: 8, value: task.remark, style: 'text' },
   ]);
+}
 
-  // Task rows (at least 22 numbered rows, like the template)
-  const taskRowCount = Math.max(MIN_TASK_ROWS, tasks.length);
-  for (let i = 0; i < taskRowCount; i++) {
-    const task = tasks[i];
-    if (!task) {
-      push(17, [
-        { col: 0, value: i + 1, style: 'no' },
-        { col: 1, value: '', style: 'task' },
-        ...[2, 3, 4, 5, 6, 7, 8].map((col) => ({ col, value: '', style: 'text' as CellStyleKey })),
-      ]);
-      continue;
-    }
-    const url = safeUrl(task.url);
-    const activity = task.activitiesDescription || (task.category ? r.activity[task.category] : '');
-    push(
-      textRowHeight(24, [
-        [task.label, 1],
-        [task.gapReason, 6],
-        [task.gapSolution, 7],
-        [task.remark, 8],
-        [url ? '' : activity, 2],
-      ]),
-      [
-        { col: 0, value: i + 1, style: 'no' },
-        { col: 1, value: task.label, style: 'task' },
-        url
-          ? { col: 2, value: getTranslations(lang).common.link, link: url, style: 'link' }
-          : { col: 2, value: activity, style: 'center' },
-        { col: 3, value: `${formatHours(task.hours)}h`, style: 'right' },
-        { col: 4, value: task.completionPct / 100, format: 'pct2', style: 'right' },
-        task.gapPct > 0
-          ? { col: 5, value: task.gapPct / 100, format: 'pct0', style: 'text' }
-          : { col: 5, value: '', style: 'text' },
-        { col: 6, value: task.gapReason, style: 'text' },
-        { col: 7, value: task.gapSolution, style: 'text' },
-        { col: 8, value: task.remark, style: 'text' },
-      ]
-    );
-  }
+/** At least 22 numbered task rows (like the template), then the "reviews, meetings…" row. */
+function taskRows(tasks: AggregatedTask[], texts: Translations): ReportRow[] {
+  const count = Math.max(MIN_TASK_ROWS, tasks.length);
+  const rows = Array.from({ length: count }, (_, i) => (tasks[i] ? taskRow(tasks[i], i, texts) : placeholderTaskRow(i)));
+  rows.push(row(24, [{ col: 0, value: '…', style: 'no' }, { col: 1, value: texts.reportDoc.reviewsFooter, style: 'footer' }, ...emptyCells([2, 3, 4, 5, 6, 7, 8])]));
+  rows.push(row(17.3));
+  return rows;
+}
 
-  push(24, [
-    { col: 0, value: '…', style: 'no' },
-    { col: 1, value: r.reviewsFooter, style: 'footer' },
-    ...[2, 3, 4, 5, 6, 7, 8].map((col) => ({ col, value: '', style: 'text' as CellStyleKey })),
-  ]);
-  push(17.3);
+function objectiveRow(index: number, obj: WeeklyObjective | undefined, reflection: [string, CellStyleKey] | undefined): ReportRow {
+  const task = obj?.task ?? '';
+  const note = obj?.note ?? '';
+  const cells: ReportCell[] = [
+    { col: 0, value: index + 1, style: 'objNo' },
+    { col: 1, value: task, style: 'objText', colSpan: 2 },
+    { col: 3, value: note, style: 'objText' },
+  ];
+  if (reflection) cells.push({ col: 5, value: reflection[0], style: reflection[1], colSpan: 4 });
+  const reflectionText = reflection?.[1] === 'refBody' ? reflection[0] : '';
+  const height = Math.max(textRowHeight(26.3, [[task, 1], [note, 3]]), lineCount(reflectionText, 9.04, 11) * 14 + 6);
+  return row(height, cells);
+}
 
-  // Objectives (B:C, D) and reflections (F:I)
-  push(26.3, [
-    { col: 0, value: r.objNo, style: 'banner' },
-    { col: 1, value: r.objTitle, style: 'banner', colSpan: 2 },
-    { col: 3, value: r.objNote, style: 'banner' },
-    { col: 5, value: r.refWentWellTitle, style: 'refHead', colSpan: 4 },
-  ]);
+/** Objectives in B:C / D and reflections in F:I. */
+function objectiveRows(r: ReportText, objectives: WeeklyObjective[], reflections: WeeklyReflections): ReportRow[] {
   const reflectionCells: Array<[string, CellStyleKey]> = [
     [reflections.wentWell, 'refBody'],
     [r.refChallengingTitle, 'refHead'],
@@ -250,39 +249,48 @@ export function buildReportSheet(input: ReportInput): ReportSheet {
     [r.refProposalTitle, 'refHead'],
     [reflections.proposal, 'refBody'],
   ];
-  const objectiveRowCount = Math.max(MIN_OBJECTIVE_ROWS, objectives.length);
-  for (let i = 0; i < objectiveRowCount; i++) {
-    const obj = objectives[i];
-    const reflection = reflectionCells[i];
-    const cells: ReportCell[] = [
-      { col: 0, value: i + 1, style: 'objNo' },
-      { col: 1, value: obj?.task ?? '', style: 'objText', colSpan: 2 },
-      { col: 3, value: obj?.note ?? '', style: 'objText' },
-    ];
-    if (reflection) cells.push({ col: 5, value: reflection[0], style: reflection[1], colSpan: 4 });
-    const reflectionText = reflection && reflection[1] === 'refBody' ? reflection[0] : '';
-    push(
-      Math.max(
-        textRowHeight(26.3, [[obj?.task ?? '', 1], [obj?.note ?? '', 3]]),
-        lineCount(reflectionText, 9.04, 11) * 14 + 6
-      ),
-      cells
-    );
-  }
-
-  push(13.5);
-  push(12.8);
-  push(62.3, [
-    { col: 1, value: r.sigEmployee, style: 'signature', colSpan: 2 },
-    { col: 6, value: r.sigManager, style: 'signature', colSpan: 2 },
+  const header = row(26.3, [
+    { col: 0, value: r.objNo, style: 'banner' },
+    { col: 1, value: r.objTitle, style: 'banner', colSpan: 2 },
+    { col: 3, value: r.objNote, style: 'banner' },
+    { col: 5, value: r.refWentWellTitle, style: 'refHead', colSpan: 4 },
   ]);
+  const count = Math.max(MIN_OBJECTIVE_ROWS, objectives.length);
+  return [header, ...Array.from({ length: count }, (_, i) => objectiveRow(i, objectives[i], reflectionCells[i]))];
+}
 
+function signatureRows(r: ReportText): ReportRow[] {
+  return [
+    row(13.5),
+    row(12.8),
+    row(62.3, [
+      { col: 1, value: r.sigEmployee, style: 'signature', colSpan: 2 },
+      { col: 6, value: r.sigManager, style: 'signature', colSpan: 2 },
+    ]),
+  ];
+}
+
+export function buildReportSheet(input: ReportInput): ReportSheet {
+  const { weekDays, settings } = input;
+  const lang = reportLanguage(settings);
+  const texts = getTranslations(lang);
+  const r = texts.reportDoc;
+  const tasks = aggregateWeeklyTasks(filterEntriesForDays(input.entries, weekDays));
+  const info = getWorkingAndOffDaysInfo(weekDays, input.dayLogs, settings);
+
+  const weekNum = getWeekNumber(weekDays[0]);
   const year = weekDays[0].getFullYear();
   return {
     sheetName: `Week ${weekNum} - ${year}`,
     fileBase: `Weekly_Report_Week_${weekNum}_${year}_${fileNamePart(settings.userName || 'employee')}`,
     columns: COLUMN_WIDTHS_IN,
-    rows,
+    rows: [
+      ...headerRows(r, weekDays, settings, info),
+      ...tableHeaderRows(r),
+      ...taskRows(tasks, texts),
+      ...objectiveRows(r, input.objectives, input.reflections),
+      ...signatureRows(r),
+    ],
     logo: buildLogo(settings, input.logoSize),
     lang,
   };
@@ -303,17 +311,23 @@ export interface GridSlot {
   coveredBy?: ReportCell;
 }
 
+/** Marks the slots a merged cell spans (all but its anchor) as covered. */
+function markCovered(grid: GridSlot[][], r: number, cell: ReportCell): void {
+  const rows = grid.slice(r, r + (cell.rowSpan ?? 1));
+  rows.forEach((slots, dr) => {
+    for (let dc = 0; dc < (cell.colSpan ?? 1); dc++) {
+      if (dr + dc > 0) slots[cell.col + dc] = { coveredBy: cell };
+    }
+  });
+}
+
 /** Expands rows into a full row x column grid, resolving merges. */
 export function toGrid(sheet: ReportSheet): GridSlot[][] {
   const grid: GridSlot[][] = sheet.rows.map(() => Array.from({ length: COLUMN_COUNT }, () => ({})));
-  sheet.rows.forEach((row, r) => {
-    for (const cell of row.cells) {
+  sheet.rows.forEach((sheetRow, r) => {
+    for (const cell of sheetRow.cells) {
       grid[r][cell.col] = { cell };
-      for (let dr = 0; dr < (cell.rowSpan ?? 1); dr++) {
-        for (let dc = 0; dc < (cell.colSpan ?? 1); dc++) {
-          if ((dr || dc) && grid[r + dr]) grid[r + dr][cell.col + dc] = { coveredBy: cell };
-        }
-      }
+      markCovered(grid, r, cell);
     }
   });
   return grid;

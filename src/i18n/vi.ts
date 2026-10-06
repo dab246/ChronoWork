@@ -310,15 +310,6 @@ export const vi = {
     refProposalTitle: '* Đề xuất, góp ý, yêu cầu của bạn…',
     sigEmployee: 'Nhân viên',
     sigManager: 'Trưởng nhóm / Quản lý',
-    activity: {
-      development: 'Dev',
-      pr_review: 'Review',
-      bugfix: 'Sửa lỗi',
-      security: 'Bảo mật',
-      release: 'Test, Dev, Review',
-      meeting: 'Họp',
-      other: 'Khác',
-    } as Record<TaskCategory, string>,
   },
   settings: {
     title: 'Cài đặt',
@@ -334,7 +325,6 @@ export const vi = {
     sectionLanguage: 'Ngôn ngữ',
     uiLanguage: 'Ngôn ngữ giao diện',
     reportLanguage: 'Ngôn ngữ báo cáo & file xuất',
-    reportLanguageSame: 'Giống ngôn ngữ giao diện',
     sectionGithub: 'Tìm kiếm GitHub',
     reposLabel: 'Repository mặc định (owner/repo, phân cách bởi dấu phẩy)',
     reposPlaceholder: 'my-org/web-app, my-org/mobile-app',

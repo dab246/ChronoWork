@@ -76,16 +76,15 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          <nav aria-label={t.header.navigation} role="tablist" className="hidden lg:flex items-center gap-1">
+          <nav aria-label={t.header.navigation} role="tablist" className="hidden xl:flex items-center gap-1 min-w-0 overflow-x-auto [scrollbar-width:none]">
             {TABS.map(({ id, icon }) => tabButton(id, icon, 'tab-indicator'))}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
             <LanguageMenu value={settings.language} onChange={onSelectLanguage} />
 
-            <button type="button" onClick={onQuickExport} title={t.header.exportCsv} className="hidden xl:inline-flex btn-outlined">
-              <Download className="w-3.5 h-3.5" />
-              <span>{t.header.exportCsv}</span>
+            <button type="button" onClick={onQuickExport} title={t.header.exportCsv} aria-label={t.header.exportCsv} className="hidden md:inline-flex icon-btn">
+              <Download className="w-5 h-5" />
             </button>
 
             <button type="button" onClick={onOpenNewTask} className="hidden md:inline-flex btn-filled">
@@ -102,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
         <nav
           aria-label={t.header.navigation}
           role="tablist"
-          className="flex lg:hidden items-center gap-1 py-2 border-t border-neutral-100 overflow-x-auto [scrollbar-width:none]"
+          className="flex xl:hidden items-center gap-1 py-2 border-t border-neutral-100 overflow-x-auto [scrollbar-width:none]"
         >
           {TABS.map(({ id, icon }) => tabButton(id, icon, 'tab-indicator-mobile', true))}
         </nav>

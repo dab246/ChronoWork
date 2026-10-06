@@ -30,9 +30,57 @@ const FeedbackContext = createContext<FeedbackValue | null>(null);
 const ICONS = { success: CheckCircle2, error: XCircle, info: Info };
 const TONE_CLASS = { success: 'text-emerald-300', error: 'text-rose-300', info: 'text-sky-300' };
 
+const Snackbar: React.FC<{ snack: Snack }> = ({ snack }) => {
+  const Icon = ICONS[snack.tone];
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 24, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 36 }}
+      role={snack.tone === 'error' ? 'alert' : 'status'}
+      className="pointer-events-auto max-w-md w-full sm:w-auto bg-neutral-900 text-white rounded-xl elevation-3 px-4 py-3 flex items-start gap-3"
+    >
+      <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${TONE_CLASS[snack.tone]}`} />
+      <div className="text-sm">
+        <p className="font-semibold">{snack.message}</p>
+        {snack.detail && <p className="text-xs text-neutral-300 mt-0.5">{snack.detail}</p>}
+      </div>
+    </motion.div>
+  );
+};
+
+interface ConfirmDialogProps {
+  dialog: ConfirmOptions | null;
+  onSettle: (value: boolean) => void;
+}
+
+const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ dialog, onSettle }) => {
+  const { t } = useI18n();
+  return (
+    <Modal
+      open={dialog !== null}
+      onClose={() => onSettle(false)}
+      size="sm"
+      title={dialog?.title}
+      icon={dialog?.danger ? <AlertTriangle className="w-5 h-5 text-rose-600" /> : <Info className="w-5 h-5" />}
+    >
+      <p className="text-sm text-neutral-600 leading-relaxed">{dialog?.message}</p>
+      <div className="flex justify-end gap-2 mt-6">
+        <button type="button" onClick={() => onSettle(false)} className="btn-text">
+          {t.common.cancel}
+        </button>
+        <button type="button" onClick={() => onSettle(true)} className={dialog?.danger ? 'btn-danger' : 'btn-filled'}>
+          {dialog?.confirmLabel ?? t.common.confirm}
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
 /** Material snackbar + confirm dialog, replacing window.alert / window.confirm. */
 export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { t } = useI18n();
   const [snacks, setSnacks] = useState<Snack[]>([]);
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((value: boolean) => void) | null>(null);
@@ -65,47 +113,13 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       <div className="no-print fixed bottom-4 inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 pointer-events-none" aria-live="polite">
         <AnimatePresence initial={false}>
-          {snacks.map((snack) => {
-            const Icon = ICONS[snack.tone];
-            return (
-              <motion.div
-                key={snack.id}
-                layout
-                initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 36 }}
-                role={snack.tone === 'error' ? 'alert' : 'status'}
-                className="pointer-events-auto max-w-md w-full sm:w-auto bg-neutral-900 text-white rounded-xl elevation-3 px-4 py-3 flex items-start gap-3"
-              >
-                <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${TONE_CLASS[snack.tone]}`} />
-                <div className="text-sm">
-                  <p className="font-semibold">{snack.message}</p>
-                  {snack.detail && <p className="text-xs text-neutral-300 mt-0.5">{snack.detail}</p>}
-                </div>
-              </motion.div>
-            );
-          })}
+          {snacks.map((snack) => (
+            <Snackbar key={snack.id} snack={snack} />
+          ))}
         </AnimatePresence>
       </div>
 
-      <Modal
-        open={dialog !== null}
-        onClose={() => settle(false)}
-        size="sm"
-        title={dialog?.title}
-        icon={dialog?.danger ? <AlertTriangle className="w-5 h-5 text-rose-600" /> : <Info className="w-5 h-5" />}
-      >
-        <p className="text-sm text-neutral-600 leading-relaxed">{dialog?.message}</p>
-        <div className="flex justify-end gap-2 mt-6">
-          <button type="button" onClick={() => settle(false)} className="btn-text">
-            {t.common.cancel}
-          </button>
-          <button type="button" onClick={() => settle(true)} className={dialog?.danger ? 'btn-danger' : 'btn-filled'}>
-            {dialog?.confirmLabel ?? t.common.confirm}
-          </button>
-        </div>
-      </Modal>
+      <ConfirmDialog dialog={dialog} onSettle={settle} />
     </FeedbackContext.Provider>
   );
 };

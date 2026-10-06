@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import type { TimeEntry, UserSettings } from '../types';
 import { DEFAULT_SETTINGS } from '../utils/storage';
 import { getWeekDays } from '../utils/dateUtils';
-import { buildReportSheet, cellText, toGrid } from '../report/model';
+import { buildReportSheet, cellText, reportLanguage, toGrid } from '../report/model';
 import { renderCsv, renderHtml, renderTsv } from '../report/html';
 import { renderOds } from '../report/ods';
 import { aggregateWeeklyTasks } from '../report/aggregate';
@@ -66,6 +66,11 @@ describe('report sheet model (company template layout)', () => {
     expect(cellText(row[5].cell!)).toBe('10%');
   });
 
+  it('leaves the description empty when none was logged, whatever the category', () => {
+    const sheetNoDesc = buildReportSheet({ ...input, entries: [entry({ taskName: 'Plain task', category: 'development' })] });
+    expect(toGrid(sheetNoDesc)[8][2].cell?.value).toBe('');
+  });
+
   it('keeps 22 numbered task rows, then the objectives block', () => {
     const footerRow = grid.findIndex((row) => row[1].cell?.value === 'Reviews, meetings, support, community, …');
     expect(footerRow).toBe(8 + 22);
@@ -73,6 +78,17 @@ describe('report sheet model (company template layout)', () => {
     expect(objHeader[1].cell).toMatchObject({ value: 'OBJECTIVE FOR  NEXT WEEK', colSpan: 2 });
     expect(objHeader[5].cell).toMatchObject({ colSpan: 4, style: 'refHead' });
     expect(grid[footerRow + 3][5].cell?.value).toBe('Good');
+  });
+});
+
+describe('reportLanguage', () => {
+  it('defaults to English, not the interface language', () => {
+    expect(reportLanguage({ ...settings, language: 'vi', reportLanguage: undefined })).toBe('en');
+    expect(cellText(toGrid(buildReportSheet({ ...input, settings: { ...settings, language: 'fr' } }))[5][0].cell!)).toBe('COMPLETED WORK');
+  });
+
+  it('uses the language chosen in Settings', () => {
+    expect(reportLanguage({ ...settings, language: 'en', reportLanguage: 'vi' })).toBe('vi');
   });
 });
 

@@ -304,15 +304,6 @@ export const en: Translations = {
     refProposalTitle: '* Your proposal, suggestion, request…',
     sigEmployee: 'Employee',
     sigManager: 'Teamleader/Manager',
-    activity: {
-      development: 'Dev',
-      pr_review: 'Review',
-      bugfix: 'Bugfix',
-      security: 'Security',
-      release: 'Test, Dev, Review',
-      meeting: 'Meeting',
-      other: 'Other',
-    },
   },
   settings: {
     title: 'Settings',
@@ -328,7 +319,6 @@ export const en: Translations = {
     sectionLanguage: 'Language',
     uiLanguage: 'Interface language',
     reportLanguage: 'Report & export language',
-    reportLanguageSame: 'Same as interface',
     sectionGithub: 'GitHub search',
     reposLabel: 'Default repositories (owner/repo, comma separated)',
     reposPlaceholder: 'my-org/web-app, my-org/mobile-app',

@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { REPORT_STYLES, toGrid, type CellStyle, type ReportCell, type ReportSheet } from './model';
+import { REPORT_STYLES, toGrid, type CellStyle, type GridSlot, type ReportCell, type ReportLogo, type ReportSheet } from './model';
 
 const argb = (hex: string) => `FF${hex.replace('#', '').toUpperCase()}`;
 
@@ -32,45 +32,50 @@ function setValue(cell: ExcelJS.Cell, source: ReportCell) {
   if (source.format) cell.numFmt = source.format === 'pct2' ? '0.00%' : '0%';
 }
 
-export async function renderExcel(sheetModel: ReportSheet, author: string): Promise<Blob> {
+function writeSlot(sheet: ExcelJS.Worksheet, slot: GridSlot, r: number, c: number) {
+  const source = slot.cell ?? slot.coveredBy;
+  if (!source) return;
+  const cell = sheet.getCell(r + 1, c + 1);
+  applyStyle(cell, REPORT_STYLES[source.style]);
+  if (slot.cell) setValue(cell, slot.cell);
+}
+
+function mergeCell(sheet: ExcelJS.Worksheet, cell: ReportCell, r: number) {
+  const rows = cell.rowSpan ?? 1;
+  const cols = cell.colSpan ?? 1;
+  if (rows * cols > 1) sheet.mergeCells(r + 1, cell.col + 1, r + rows, cell.col + cols);
+}
+
+function writeRows(sheet: ExcelJS.Worksheet, model: ReportSheet) {
+  const grid = toGrid(model);
+  model.rows.forEach((row, r) => {
+    sheet.getRow(r + 1).height = row.height;
+    grid[r].forEach((slot, c) => writeSlot(sheet, slot, r, c));
+    row.cells.forEach((cell) => mergeCell(sheet, cell, r));
+  });
+}
+
+function addLogo(workbook: ExcelJS.Workbook, sheet: ExcelJS.Worksheet, logo: ReportLogo) {
+  const imageId = workbook.addImage({ base64: logo.dataUrl, extension: logo.mime === 'image/jpeg' ? 'jpeg' : 'png' });
+  sheet.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: logo.width, height: logo.height },
+    editAs: 'oneCell',
+  });
+}
+
+export async function renderExcel(model: ReportSheet, author: string): Promise<Blob> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = author;
   workbook.created = new Date();
 
-  const sheet = workbook.addWorksheet(sheetModel.sheetName, {
+  const sheet = workbook.addWorksheet(model.sheetName, {
     views: [{ showGridLines: true }],
     pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  sheet.columns = sheetModel.columns.map((w) => ({ width: columnWidth(w) }));
-
-  const grid = toGrid(sheetModel);
-  sheetModel.rows.forEach((row, r) => {
-    sheet.getRow(r + 1).height = row.height;
-    grid[r].forEach((slot, c) => {
-      const source = slot.cell ?? slot.coveredBy;
-      if (!source) return;
-      const cell = sheet.getCell(r + 1, c + 1);
-      applyStyle(cell, REPORT_STYLES[source.style]);
-      if (slot.cell) setValue(cell, slot.cell);
-    });
-    for (const cell of row.cells) {
-      if ((cell.colSpan ?? 1) > 1 || (cell.rowSpan ?? 1) > 1) {
-        sheet.mergeCells(r + 1, cell.col + 1, r + (cell.rowSpan ?? 1), cell.col + (cell.colSpan ?? 1));
-      }
-    }
-  });
-
-  if (sheetModel.logo) {
-    const imageId = workbook.addImage({
-      base64: sheetModel.logo.dataUrl,
-      extension: sheetModel.logo.mime === 'image/jpeg' ? 'jpeg' : 'png',
-    });
-    sheet.addImage(imageId, {
-      tl: { col: 0, row: 0 },
-      ext: { width: sheetModel.logo.width, height: sheetModel.logo.height },
-      editAs: 'oneCell',
-    });
-  }
+  sheet.columns = model.columns.map((w) => ({ width: columnWidth(w) }));
+  writeRows(sheet, model);
+  if (model.logo) addLogo(workbook, sheet, model.logo);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

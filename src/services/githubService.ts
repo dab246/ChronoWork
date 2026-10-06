@@ -47,22 +47,33 @@ function toGitHubUrl(value: string): URL | null {
   }
 }
 
-function buildHeaders(token?: string): Record<string, string> {
+export interface GitHubRequestOptions {
+  token?: string;
+  signal?: AbortSignal;
+}
+
+export interface GitHubSearchOptions extends GitHubRequestOptions {
+  repos?: string[];
+}
+
+function requestInit({ token, signal }: GitHubRequestOptions): RequestInit {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+  return { headers, signal, referrerPolicy: 'no-referrer', credentials: 'omit' };
 }
 
-function requestInit(token: string | undefined, signal?: AbortSignal): RequestInit {
-  return {
-    headers: buildHeaders(token),
-    signal,
-    referrerPolicy: 'no-referrer',
-    credentials: 'omit',
-  };
+/** JSON body of a successful response, or null on HTTP / network errors. Aborts are rethrown. */
+async function getJson(url: string, options: GitHubRequestOptions): Promise<unknown> {
+  try {
+    const res = await fetch(url, requestInit(options));
+    return res.ok ? await res.json() : null;
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw err;
+    return null;
+  }
 }
 
 function toItem(data: Record<string, unknown>, repoName: string): GitHubItem | null {
@@ -83,11 +94,7 @@ function toItem(data: Record<string, unknown>, repoName: string): GitHubItem | n
  * Fetch issue or pull request metadata. Falls back to an item built from the
  * URL itself when the API is unreachable or rate limited.
  */
-export async function fetchGitHubDetailsByUrl(
-  url: string,
-  token?: string,
-  signal?: AbortSignal
-): Promise<GitHubItem | null> {
+export async function fetchGitHubDetailsByUrl(url: string, options: GitHubRequestOptions = {}): Promise<GitHubItem | null> {
   const parsed = parseGitHubUrl(url);
   if (!parsed) return null;
 
@@ -103,47 +110,31 @@ export async function fetchGitHubDetailsByUrl(
   };
 
   const endpoint = `${API_BASE}/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/issues/${parsed.number}`;
-  try {
-    const res = await fetch(endpoint, requestInit(token, signal));
-    if (!res.ok) return fallback;
-    return toItem(await res.json(), repoName) ?? fallback;
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err;
-    return fallback;
-  }
+  const data = (await getJson(endpoint, options)) as Record<string, unknown> | null;
+  return (data && toItem(data, repoName)) ?? fallback;
+}
+
+/** `query` restricted to the valid configured repositories. */
+function buildSearchQuery(query: string, repos: string[]): string {
+  const qualifiers = repos.filter((r) => REPO_PATTERN.test(r)).map((r) => `repo:${r}`);
+  return [query, ...qualifiers].join(' ');
 }
 
 /**
  * Search issues and PRs, restricted to the configured repositories when set.
  */
-export async function searchGitHubIssuesAndPRs(
-  query: string,
-  repos: string[] = [],
-  token?: string,
-  signal?: AbortSignal
-): Promise<GitHubItem[]> {
+export async function searchGitHubIssuesAndPRs(query: string, options: GitHubSearchOptions = {}): Promise<GitHubItem[]> {
   const trimmed = query.trim().slice(0, MAX_QUERY_LENGTH);
   if (!trimmed) return [];
 
   if (trimmed.includes('github.com/')) {
-    const directItem = await fetchGitHubDetailsByUrl(trimmed, token, signal);
+    const directItem = await fetchGitHubDetailsByUrl(trimmed, options);
     return directItem ? [directItem] : [];
   }
 
-  const repoQualifier = repos
-    .filter((r) => REPO_PATTERN.test(r))
-    .map((r) => `repo:${r}`)
-    .join(' ');
-  const searchQuery = repoQualifier ? `${trimmed} ${repoQualifier}` : trimmed;
-
-  try {
-    const url = `${API_BASE}/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=10`;
-    const res = await fetch(url, requestInit(token, signal));
-    return res.ok ? parseSearchItems(await res.json()) : [];
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err;
-    return [];
-  }
+  const searchQuery = buildSearchQuery(trimmed, options.repos ?? []);
+  const url = `${API_BASE}/search/issues?q=${encodeURIComponent(searchQuery)}&per_page=10`;
+  return parseSearchItems(await getJson(url, options));
 }
 
 function parseSearchItems(data: unknown): GitHubItem[] {

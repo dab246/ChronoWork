@@ -60,15 +60,90 @@ const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.
   </section>
 );
 
+const LogoPicker: React.FC<{ value?: string; onChange: (logo: string | undefined) => void }> = ({ value, onChange }) => {
+  const { t } = useI18n();
+  const { notify } = useFeedback();
+  const s = t.settings;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      onChange(await processLogo(file));
+    } catch (err) {
+      notify((err as Error).message === 'too_large' ? s.logoTooLarge : s.logoInvalid, { tone: 'error' });
+    }
+  };
+
+  return (
+    <>
+      <p className="text-[11px] text-neutral-500">{s.logoHint}</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        {value && (
+          <>
+            <div className="h-14 px-3 py-2 bg-white border border-neutral-200 rounded-xl flex items-center">
+              <img src={value} alt="" className="h-full w-auto object-contain" />
+            </div>
+            <button type="button" onClick={() => inputRef.current?.click()} className="btn-tonal">
+              <Upload className="w-3.5 h-3.5" />
+              {s.logoReplace}
+            </button>
+            <button type="button" onClick={() => onChange(undefined)} className="btn-text text-rose-600 hover:bg-rose-50">
+              <X className="w-3.5 h-3.5" />
+              {s.logoRemove}
+            </button>
+          </>
+        )}
+        {!value && (
+          <button type="button" onClick={() => inputRef.current?.click()} className="btn-tonal">
+            <Upload className="w-3.5 h-3.5" />
+            {s.logoUpload}
+          </button>
+        )}
+        <input ref={inputRef} type="file" accept="image/png,image/jpeg" onChange={handleFile} className="hidden" />
+      </div>
+    </>
+  );
+};
+
+const toggleDay = (days: number[], day: number) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort());
+
+const OfficeDaysPicker: React.FC<{ value: number[]; onChange: (days: number[]) => void }> = ({ value, onChange }) => {
+  const { lang } = useI18n();
+  const weekdayNames = getWeekdayNames(lang, false).slice(0, 5);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {weekdayNames.map((name, i) => {
+        const day = i + 1;
+        const selected = value.includes(day);
+        return (
+          <button
+            key={day}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(toggleDay(value, day))}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border capitalize transition-all ${
+              selected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+            }`}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSaveSettings, onRefreshData }) => {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { notify, confirm } = useFeedback();
   const s = t.settings;
 
   const [form, setForm] = useState(settings);
   const [repos, setRepos] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Reload the fields from the current settings every time the dialog opens
   useEffect(() => {
@@ -79,10 +154,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
   }, [isOpen, settings]);
 
   const set = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const weekdayNames = getWeekdayNames(lang, false).slice(0, 5);
-
-  const toggleOfficeDay = (day: number) =>
-    set('defaultOfficeDays', form.defaultOfficeDays.includes(day) ? form.defaultOfficeDays.filter((d) => d !== day) : [...form.defaultOfficeDays, day].sort());
 
   const handleSave = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -100,17 +171,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
     });
     notify(s.saved, invalid.length ? { tone: 'info', detail: s.reposInvalid(invalid.join(', ')) } : undefined);
     onClose();
-  };
-
-  const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      set('logoDataUrl', await processLogo(file));
-    } catch (err) {
-      notify((err as Error).message === 'too_large' ? s.logoTooLarge : s.logoInvalid, { tone: 'error' });
-    }
   };
 
   const handleExportBackup = () => {
@@ -179,25 +239,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
         </Section>
 
         <Section icon={<ImageIcon className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionBranding}>
-          <p className="text-[11px] text-neutral-500">{s.logoHint}</p>
-          <div className="flex items-center gap-3 flex-wrap">
-            {form.logoDataUrl && (
-              <div className="h-14 px-3 py-2 bg-white border border-neutral-200 rounded-xl flex items-center">
-                <img src={form.logoDataUrl} alt="" className="h-full w-auto object-contain" />
-              </div>
-            )}
-            <button type="button" onClick={() => logoInputRef.current?.click()} className="btn-tonal">
-              <Upload className="w-3.5 h-3.5" />
-              {form.logoDataUrl ? s.logoReplace : s.logoUpload}
-            </button>
-            {form.logoDataUrl && (
-              <button type="button" onClick={() => set('logoDataUrl', undefined)} className="btn-text text-rose-600 hover:bg-rose-50">
-                <X className="w-3.5 h-3.5" />
-                {s.logoRemove}
-              </button>
-            )}
-            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg" onChange={handleLogo} className="hidden" />
-          </div>
+          <LogoPicker value={form.logoDataUrl} onChange={(logo) => set('logoDataUrl', logo)} />
         </Section>
 
         <Section icon={<Clock className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionWork}>
@@ -214,25 +256,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           <div>
             <span className="field-label">{s.officeDaysLabel}</span>
             <p className="text-[11px] text-neutral-500 mb-2">{s.officeDaysDesc}</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {weekdayNames.map((name, i) => {
-                const day = i + 1;
-                const selected = form.defaultOfficeDays.includes(day);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => toggleOfficeDay(day)}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border capitalize transition-all ${
-                      selected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-                    }`}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
+            <OfficeDaysPicker value={form.defaultOfficeDays} onChange={(days) => set('defaultOfficeDays', days)} />
           </div>
         </Section>
 
@@ -250,11 +274,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
               <label className="field-label" htmlFor="set-report-lang">{s.reportLanguage}</label>
               <select
                 id="set-report-lang"
-                value={form.reportLanguage ?? ''}
-                onChange={(e) => set('reportLanguage', (e.target.value || undefined) as Language | undefined)}
+                value={form.reportLanguage ?? 'en'}
+                onChange={(e) => set('reportLanguage', e.target.value as Language)}
                 className="input-field"
               >
-                <option value="">{s.reportLanguageSame}</option>
                 {LANGUAGES.map((l) => (
                   <option key={l} value={l}>{t.language.names[l]}</option>
                 ))}
