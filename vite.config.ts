@@ -1,22 +1,52 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import type { Plugin } from 'vite';
+import { defineConfig } from 'vitest/config';
 
-export default defineConfig(() => {
+/**
+ * Content-Security-Policy for the production build. The dev server is left
+ * without it because Vite injects inline scripts for HMR.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' https://api.github.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join('; ');
+
+function contentSecurityPolicy(): Plugin {
   return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    name: 'chronowork-csp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      return html.replace(
+        '<meta charset="UTF-8" />',
+        `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}" />`
+      );
     },
   };
+}
+
+export default defineConfig({
+  plugins: [react(), tailwindcss(), contentSecurityPolicy()],
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, '.'),
+    },
+  },
+  build: {
+    sourcemap: false,
+    // exceljs is only loaded on demand when exporting .xlsx
+    chunkSizeWarningLimit: 1000,
+  },
+  test: {
+    environment: 'jsdom',
+  },
 });
