@@ -3,12 +3,15 @@ updates:
   - package-ecosystem: bun
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # Majors follow the Node version CI runs on, bumped by hand
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
     groups:
       # One PR for all minor / patch updates, majors on their own
       minor-and-patch:
