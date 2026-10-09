@@ -1,11 +1,11 @@
 import React from 'react';
-import { Clock, Trash2 } from 'lucide-react';
+import { Clock, Repeat, Trash2 } from 'lucide-react';
 import type { TimeEntry, UserSettings } from '../types';
-import { formatDateIso } from '../utils/dateUtils';
+import { formatDateIso, formatLongDate } from '../utils/dateUtils';
 import { useI18n } from '../i18n';
 import { Modal } from '../ui/Modal';
 import { useFeedback } from '../ui/feedback';
-import { TaskForm, type TaskDraft } from './TaskForm';
+import { TaskForm, type TaskDraft, type TaskTemplate } from './TaskForm';
 
 interface ManualEntryModalProps {
   isOpen: boolean;
@@ -13,7 +13,10 @@ interface ManualEntryModalProps {
   onSave: (entry: TaskDraft, editingId?: string) => void;
   onDelete?: (id: string) => void;
   editingEntry?: TimeEntry | null;
+  /** Task continued on `defaultDate` (drag & drop or "+" in the timesheet) */
+  template?: TaskTemplate | null;
   projects: string[];
+  entries: TimeEntry[];
   defaultDate?: string;
   settings: UserSettings;
 }
@@ -54,13 +57,21 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
   onSave,
   onDelete,
   editingEntry,
+  template,
   projects,
+  entries,
   defaultDate,
   settings,
 }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const m = t.entryModal;
-  const labels = editingEntry ? { title: m.titleEdit, submit: m.submitUpdate } : { title: m.titleNew, submit: m.submitNew };
+  const date = defaultDate || formatDateIso(new Date());
+  const continuing = !editingEntry && template;
+  const labels = editingEntry
+    ? { title: m.titleEdit, submit: m.submitUpdate, icon: <Clock className="w-5 h-5" /> }
+    : continuing
+      ? { title: m.titleContinue, submit: m.submitNew, icon: <Repeat className="w-5 h-5" /> }
+      : { title: m.titleNew, submit: m.submitNew, icon: <Clock className="w-5 h-5" /> };
 
   const handleSubmit = (draft: TaskDraft) => {
     onSave(draft, editingEntry?.id);
@@ -68,12 +79,21 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose} size="lg" icon={<Clock className="w-5 h-5" />} title={labels.title}>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      icon={labels.icon}
+      title={labels.title}
+      subtitle={continuing ? m.continueHint(formatLongDate(date, lang)) : undefined}
+    >
       <TaskForm
         settings={settings}
         projects={projects}
-        date={defaultDate || formatDateIso(new Date())}
+        entries={entries}
+        date={date}
         editing={editingEntry}
+        template={editingEntry ? null : template}
         showDate
         submitLabel={labels.submit}
         onSubmit={handleSubmit}

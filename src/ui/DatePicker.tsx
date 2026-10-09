@@ -29,7 +29,7 @@ interface DatePickerProps {
 }
 
 const TRIGGER_CLASS = {
-  inline: 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-neutral-900 hover:bg-indigo-50 rounded-lg transition-colors tabular-nums',
+  inline: 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-900 hover:bg-indigo-50 rounded-lg transition-colors tabular-nums',
   field: 'input-field flex items-center gap-2 text-left tabular-nums',
 };
 
@@ -85,7 +85,7 @@ interface DayState {
 function dayColorClass({ selected, weekHover, inMonth }: DayState): string {
   if (selected) return 'bg-indigo-600 text-white font-bold';
   if (weekHover) return 'bg-indigo-50 text-indigo-900';
-  return inMonth ? 'text-neutral-800 hover:bg-indigo-50' : 'text-neutral-300 hover:bg-neutral-50';
+  return inMonth ? 'text-slate-800 hover:bg-indigo-50' : 'text-slate-300 hover:bg-slate-50';
 }
 
 function dayClass(state: DayState, weekMode: boolean): string {
@@ -108,7 +108,7 @@ const PickerHeader: React.FC<PickerHeaderProps> = ({ view, cursor, onToggleView,
       <button
         type="button"
         onClick={onToggleView}
-        className="px-2 py-1 text-sm font-bold text-neutral-900 rounded-lg hover:bg-neutral-100"
+        className="px-2 py-1 text-sm font-bold text-slate-900 rounded-lg hover:bg-slate-100"
         aria-label={t.datePicker.chooseMonth}
       >
         {view === 'days' ? formatMonthYear(cursor, lang) : cursor.getFullYear()}
@@ -118,7 +118,7 @@ const PickerHeader: React.FC<PickerHeaderProps> = ({ view, cursor, onToggleView,
           type="button"
           onClick={() => onStep(-1)}
           aria-label={t.common.prevMonth}
-          className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-600"
+          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-600"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -126,7 +126,7 @@ const PickerHeader: React.FC<PickerHeaderProps> = ({ view, cursor, onToggleView,
           type="button"
           onClick={() => onStep(1)}
           aria-label={t.common.nextMonth}
-          className="p-1.5 rounded-full hover:bg-neutral-100 text-neutral-600"
+          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-600"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -154,7 +154,7 @@ const MonthList: React.FC<MonthListProps> = ({ value, cursor, onPick }) => {
             type="button"
             onClick={() => onPick(new Date(cursor.getFullYear(), m, 1))}
             className={`py-2.5 text-xs font-semibold rounded-full capitalize transition-colors ${
-              selected ? 'bg-indigo-600 text-white' : 'text-neutral-700 hover:bg-indigo-50'
+              selected ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-indigo-50'
             }`}
           >
             {name}
@@ -199,7 +199,7 @@ const DayGrid: React.FC<DayGridProps> = ({ ref, value, cursor, weekMode, onCurso
     <div ref={ref} onKeyDown={onKeyDown} role="grid" onMouseLeave={() => setHovered(null)}>
       <div className="grid grid-cols-7 mb-1" role="row">
         {weekdays.map((w, i) => (
-          <div key={w} role="columnheader" className={`text-center text-[10px] font-bold uppercase py-1 ${i >= 5 ? 'text-neutral-400' : 'text-neutral-500'}`}>
+          <div key={w} role="columnheader" className={`text-center text-[10px] font-bold uppercase py-1 ${i >= 5 ? 'text-slate-400' : 'text-slate-500'}`}>
             {w}
           </div>
         ))}
@@ -277,7 +277,7 @@ const PickerPopover: React.FC<PopoverProps> = ({ ref, id, label, side, value, mo
       exit={{ opacity: 0, y: -4, scale: 0.98 }}
       transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
       style={{ transformOrigin: SIDE[side].origin }}
-      className={`absolute top-full mt-2 z-40 w-[296px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl elevation-3 border border-neutral-200 p-3 ${SIDE[side].className}`}
+      className={`absolute top-full mt-2 z-40 w-[296px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl elevation-3 border border-slate-200 p-3 ${SIDE[side].className}`}
     >
       <PickerHeader view={view} cursor={cursor} onToggleView={() => setView(OTHER_VIEW[view])} onStep={step} />
       {view === 'months' ? (
@@ -285,7 +285,7 @@ const PickerPopover: React.FC<PopoverProps> = ({ ref, id, label, side, value, mo
       ) : (
         <DayGrid ref={gridRef} value={value} cursor={cursor} weekMode={mode === 'week'} onCursor={setCursor} onSelect={onSelect} />
       )}
-      <div className="flex justify-end pt-2 mt-2 border-t border-neutral-100">
+      <div className="flex justify-end pt-2 mt-2 border-t border-slate-100">
         <button type="button" onClick={() => onSelect(new Date())} className="btn-text text-xs">
           {t.datePicker.goToday}
         </button>

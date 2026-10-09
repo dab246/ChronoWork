@@ -1,7 +1,12 @@
 import type { TaskCategory, TimeEntry } from '../types';
 import { clampNumber, safeUrl } from '../utils/security';
+import { clampProgress, type ProgressBounds } from '../utils/taskHistory';
 
 export type TaskDraft = Omit<TimeEntry, 'id' | 'createdAt'>;
+
+/** Values carried over when continuing a task logged before (drag & drop, "+" in the timesheet, a name suggestion). */
+export type TaskTemplate = Pick<TimeEntry, 'taskName' | 'project'> &
+  Partial<Pick<TimeEntry, 'category' | 'hours' | 'githubUrl' | 'githubNumber' | 'description' | 'completionPct' | 'gapReason' | 'gapSolution'>>;
 
 export interface FormState {
   taskName: string;
@@ -36,9 +41,28 @@ function definedOnly<T extends object>(values: T): Partial<T> {
   return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as Partial<T>;
 }
 
-/** Form values for a new task on `date`, or for editing an existing entry. */
-export function initialState(editing: TimeEntry | null | undefined, date: string): FormState {
-  if (!editing) return { ...EMPTY_FORM, date };
+/** The form with the task details of `template`; the hours are kept unless the template has some. Day-specific fields are left as they are. */
+export function applyTemplate(form: FormState, template: TaskTemplate): FormState {
+  return {
+    ...form,
+    ...definedOnly({
+      taskName: template.taskName,
+      project: template.project,
+      category: template.category,
+      hours: template.hours === undefined ? undefined : String(template.hours),
+      githubUrl: template.githubUrl ?? '',
+      githubNumber: template.githubNumber,
+      description: template.description ?? '',
+      completionPct: template.completionPct,
+      gapReason: template.gapReason ?? '',
+      gapSolution: template.gapSolution ?? '',
+    }),
+  };
+}
+
+/** Form values for a new task on `date` (optionally continuing `template`), or for editing an existing entry. */
+export function initialState(editing: TimeEntry | null | undefined, date: string, template?: TaskTemplate | null): FormState {
+  if (!editing) return template ? applyTemplate({ ...EMPTY_FORM, date }, template) : { ...EMPTY_FORM, date };
   return {
     ...EMPTY_FORM,
     ...definedOnly({
@@ -79,11 +103,11 @@ export function validationError(form: FormState, messages: ValidationMessages): 
 
 const optional = (text: string) => text.trim() || undefined;
 
-/** Converts valid form values into a time entry draft. */
-export function toDraft(form: FormState): TaskDraft {
+/** Converts valid form values into a time entry draft; the completion is kept inside the task's progress bounds. */
+export function toDraft(form: FormState, bounds: Pick<ProgressBounds, 'min' | 'max'> = { min: 0, max: 100 }): TaskDraft {
   const hours = Number(form.hours);
   const url = form.githubUrl.trim();
-  const completionPct = clampNumber(form.completionPct, 0, 100, 100);
+  const completionPct = clampProgress(clampNumber(form.completionPct, 0, 100, 100), bounds);
   const hasGap = completionPct < 100;
   return {
     date: form.date,

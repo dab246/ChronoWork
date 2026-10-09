@@ -157,7 +157,7 @@ export const TaskRows: React.FC<TaskRowsProps> = ({ tasks, weekEntries, r, linkL
 
       {tasks.length === 0 && (
         <tr>
-          <td colSpan={9} className="py-6 text-center text-neutral-500 italic font-sans" style={grey}>{t.report.empty}</td>
+          <td colSpan={9} className="py-6 text-center text-slate-500 italic font-sans" style={grey}>{t.report.empty}</td>
         </tr>
       )}
       {tasks.map((task, idx) => (

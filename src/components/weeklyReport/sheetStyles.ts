@@ -11,4 +11,4 @@ export const light: React.CSSProperties = { background: C.cellLight, ...cellBord
 export const head: React.CSSProperties = { background: C.header, ...cellBorder };
 export const banner: React.CSSProperties = { background: C.banner, color: C.white };
 export const serif: React.CSSProperties = { fontFamily: "'Times New Roman', serif", fontSize: 13 };
-export const inputClass = 'w-full bg-white/80 border border-neutral-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500';
+export const inputClass = 'w-full bg-white/80 border border-slate-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500';

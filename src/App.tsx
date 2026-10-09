@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { Plus } from 'lucide-react';
 import type { TimeEntry, UserSettings } from './types';
+import type { TaskTemplate } from './components/TaskForm';
 import { getStoredSettings, saveStoredSettings } from './utils/storage';
 import { formatDateIso, getWeekDays } from './utils/dateUtils';
 import { exportReport } from './report';
@@ -28,9 +29,11 @@ export default function App({ onReady }: { onReady?: () => void }) {
 
   return (
     <I18nProvider lang={settings.language}>
-      <FeedbackProvider>
-        <Workspace settings={settings} setSettings={setSettings} />
-      </FeedbackProvider>
+      <MotionConfig reducedMotion="user">
+        <FeedbackProvider>
+          <Workspace settings={settings} setSettings={setSettings} />
+        </FeedbackProvider>
+      </MotionConfig>
     </I18nProvider>
   );
 }
@@ -43,6 +46,8 @@ interface WorkspaceProps {
 interface TaskModalState {
   open: boolean;
   entry: TimeEntry | null;
+  /** Task continued on `date` */
+  template: TaskTemplate | null;
   date: string;
 }
 
@@ -54,10 +59,11 @@ interface TabContentProps {
   onChangeDate: (date: Date) => void;
   onNewTask: (dateIso?: string) => void;
   onEditTask: (entry: TimeEntry) => void;
+  onContinueTask: (template: TaskTemplate, dateIso: string) => void;
   onOpenDayStatus: (dateIso: string) => void;
 }
 
-const TabContent: React.FC<TabContentProps> = ({ tab, data, settings, currentDate, onChangeDate, onNewTask, onEditTask, onOpenDayStatus }) => {
+const TabContent: React.FC<TabContentProps> = ({ tab, data, settings, currentDate, onChangeDate, onNewTask, onEditTask, onContinueTask, onOpenDayStatus }) => {
   const weekProps = { currentDate, onChangeDate, entries: data.entries, dayLogs: data.dayLogs, settings };
   const views: Record<ActiveTab, () => React.ReactNode> = {
     daily: () => (
@@ -71,6 +77,7 @@ const TabContent: React.FC<TabContentProps> = ({ tab, data, settings, currentDat
         onSaveTask={data.saveEntry}
         onDeleteTask={data.deleteEntry}
         onSetDayStatus={data.updateDayStatus}
+        onOpenDayStatus={onOpenDayStatus}
       />
     ),
     report: () => (
@@ -86,7 +93,13 @@ const TabContent: React.FC<TabContentProps> = ({ tab, data, settings, currentDat
       />
     ),
     timesheet: () => (
-      <WeeklyTimesheetView {...weekProps} onOpenNewTaskForDay={onNewTask} onEditTask={onEditTask} onOpenDayStatusModal={onOpenDayStatus} />
+      <WeeklyTimesheetView
+        {...weekProps}
+        onOpenNewTaskForDay={onNewTask}
+        onEditTask={onEditTask}
+        onContinueTask={onContinueTask}
+        onOpenDayStatusModal={onOpenDayStatus}
+      />
     ),
     calendar: () => <CalendarLeaveView dayLogs={data.dayLogs} settings={settings} onOpenDayStatusModal={onOpenDayStatus} />,
     performance: () => <PerformanceView {...weekProps} />,
@@ -98,7 +111,7 @@ const AppFooter: React.FC<{ companyName: string }> = ({ companyName }) => {
   const { t } = useI18n();
   const prefix = companyName ? `${companyName} · ` : '';
   return (
-    <footer className="no-print border-t border-neutral-200 bg-white py-4 text-xs text-neutral-500">
+    <footer className="no-print border-t border-slate-200/80 bg-white/70 backdrop-blur py-4 text-xs text-slate-500">
       <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
         <span>
           {prefix}
@@ -137,12 +150,13 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-  const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false, entry: null, date: formatDateIso(new Date()) });
+  const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false, entry: null, template: null, date: formatDateIso(new Date()) });
   const [dayStatusDate, setDayStatusDate] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const openNewTaskModal = (dateIso?: string) => setTaskModal({ open: true, entry: null, date: dateIso || formatDateIso(currentDate) });
-  const openEditTaskModal = (entry: TimeEntry) => setTaskModal({ open: true, entry, date: entry.date });
+  const openNewTaskModal = (dateIso?: string) => setTaskModal({ open: true, entry: null, template: null, date: dateIso || formatDateIso(currentDate) });
+  const openEditTaskModal = (entry: TimeEntry) => setTaskModal({ open: true, entry, template: null, date: entry.date });
+  const openContinueTaskModal = (template: TaskTemplate, dateIso: string) => setTaskModal({ open: true, entry: null, template, date: dateIso });
 
   const handleQuickExport = async () => {
     const input = { weekDays: getWeekDays(currentDate), entries: data.entries, dayLogs: data.dayLogs, settings, objectives: data.objectives, reflections: data.reflections };
@@ -154,7 +168,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-950">
+    <div className="app-canvas min-h-screen text-slate-900 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-950">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -182,6 +196,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
               onChangeDate={setCurrentDate}
               onNewTask={openNewTaskModal}
               onEditTask={openEditTaskModal}
+              onContinueTask={openContinueTaskModal}
               onOpenDayStatus={setDayStatusDate}
             />
           </motion.div>
@@ -196,7 +211,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
         onClick={() => openNewTaskModal()}
         aria-label={t.header.addTask}
         whileTap={{ scale: 0.92 }}
-        className="no-print md:hidden fixed right-4 bottom-20 z-30 w-14 h-14 rounded-2xl bg-indigo-600 text-white elevation-3 flex items-center justify-center"
+        className="no-print md:hidden fixed right-4 bottom-20 z-30 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white elevation-3 flex items-center justify-center"
       >
         <Plus className="w-6 h-6" />
       </motion.button>
@@ -207,7 +222,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
         onSave={data.saveEntry}
         onDelete={data.deleteEntry}
         editingEntry={taskModal.entry}
+        template={taskModal.template}
         projects={data.projects}
+        entries={data.entries}
         defaultDate={taskModal.date}
         settings={settings}
       />

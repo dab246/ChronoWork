@@ -41,7 +41,7 @@ const LanguageOption: React.FC<LanguageOptionProps> = ({ id, lang, selected, act
       onMouseEnter={onHover}
       className={`relative overflow-hidden flex items-center gap-3 px-3.5 py-2.5 text-sm cursor-pointer select-none transition-colors ${
         active ? 'bg-indigo-50' : ''
-      } ${selected ? 'font-bold text-indigo-700' : 'text-neutral-800'}`}
+      } ${selected ? 'font-bold text-indigo-700' : 'text-slate-800'}`}
     >
       <span className="text-base leading-none" aria-hidden="true">
         {FLAGS[lang]}
@@ -79,13 +79,13 @@ const LanguageTrigger: React.FC<LanguageTriggerProps> = ({ ref, value, open, men
       aria-expanded={open}
       aria-controls={menuId}
       aria-label={`${t.language.label}: ${t.language.names[value]}`}
-      className="flex items-center gap-1.5 pl-2.5 pr-2 py-2 text-xs font-bold text-neutral-700 bg-white border border-neutral-300 rounded-full hover:bg-neutral-50 transition-colors"
+      className="flex items-center gap-1.5 pl-2.5 pr-2 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-full hover:bg-slate-50 transition-colors"
     >
       <Languages className="w-4 h-4 text-indigo-600" />
       {/* Full name only where the header has room (the desktop tab bar starts at xl) */}
       <span className="hidden sm:inline xl:hidden">{t.language.names[value]}</span>
       <span className="sm:hidden xl:inline uppercase">{value}</span>
-      <ChevronDown className={`w-3.5 h-3.5 text-neutral-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
     </button>
   );
 };
@@ -153,7 +153,7 @@ export const LanguageMenu: React.FC<LanguageMenuProps> = ({ value, onChange }) =
             exit={{ opacity: 0, scale: 0.95, y: -2 }}
             transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
             style={{ transformOrigin: 'top right' }}
-            className="absolute right-0 top-full mt-2 z-40 min-w-[180px] py-1.5 bg-white rounded-xl elevation-3 border border-neutral-200 outline-none"
+            className="absolute right-0 top-full mt-2 z-40 min-w-[180px] py-1.5 bg-white rounded-xl elevation-3 border border-slate-200 outline-none"
           >
             {LANGUAGES.map((lang, i) => (
               <LanguageOption

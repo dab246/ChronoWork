@@ -14,7 +14,8 @@ The app is built around a few product decisions that shape how it must be used. 
 
 1. **Log daily, report weekly.** Tasks are logged at the end of each day. The weekly report is generated from them and is never typed from scratch.
 2. **Day status drives the targets.** Every Monday–Friday is "At the office" or "Remote (WFH)" according to the default office days in Settings, until it is changed. Leave days lower the weekly target and appear in the report header automatically.
-3. **One report row per task.** Entries with the same task name in a week are merged into one row: hours are summed, the lowest completion wins, and the first non-empty description / reason / solution / remark is kept.
+3. **One report row per task.** Entries with the same task name in a week are merged into one row: hours are summed, the completion of the latest entry wins (a finished task drops its gap reason and solution), and the first non-empty description / remark is kept.
+6. **Progress is cumulative per task.** A task keeps its progress across days and weeks: a new entry starts from the completion already logged for that task, cannot go below it (nor above a later entry), and a task that reached 100% stays at 100%.
 4. **Data stays in the browser.** Everything is saved in this browser's `localStorage`. Nothing is uploaded; moving data between browsers or machines goes through a JSON backup.
 5. **Exports match the company template.** Excel, ODS, PDF and "Copy to sheet" all reproduce the template layout. The report is in **English by default**, whatever the interface language; another report language can be chosen in Settings.
 
@@ -36,14 +37,16 @@ Tip: "Load sample data" fills the current week with examples, which is the quick
 ### 2. Every day: Daily log tab
 
 1. Pick the day with the date arrows or the calendar button (defaults to today).
-2. Set the **Day status**: At the office, Remote (WFH), Paid leave or Sick leave. On a leave day no logging is needed; the day is added to the report's "days off" line.
+2. Set the **Day status**: At the office or Remote (WFH). Leave, holidays and overtime are set with **More statuses** (or from the Timesheet / Attendance tabs, see section 3). On a leave day no logging is needed; the day is added to the report's "days off" line.
 3. Fill in **Log completed work** for each task:
    - **Search a GitHub issue / PR** by keyword or `#number`, or paste a `https://github.com/...` URL. Picking a result fills the task name (`Title #number`), the link and, when it matches, the project.
-   - **Task name** (required) and **Time spent** (0.25–24 hours, required). The 1h / 2h / 4h / 8h chips set the time in one click.
+   - **Task name** (required) and **Time spent** (0.25–24 hours, required). The 1h / 2h / 4h / 8h chips set the time in one click. Typing in the task name suggests the tasks logged before (case-insensitive) with their latest progress; picking one fills the project, category, link, description and progress.
    - **Project**, **Category**, **Link**, **Description of activities**. If the description is empty, the report's description cell stays empty (a task with a link shows "Link" there instead).
-   - **Completion %**. Below 100%, the gap is computed automatically; add a **Gap reason** and a **Solution & deadline**.
+   - **Completion %**. For a task logged before, the slider starts at the progress already reached (shown as "Before: 60% (06/10)") and cannot go lower; a task already at 100% is locked. Below 100%, the gap is computed automatically; add a **Gap reason** and a **Solution & deadline**.
 4. Click **Log task**. The day's total is compared with your daily standard ("6h remaining", "8h reached").
-5. Edit or delete a task from the list below the form; deleting asks for confirmation.
+5. Edit or delete a task from the list next to the form; deleting asks for confirmation.
+
+To continue a task on another day from the **Timesheet** tab, drag its hours cell to that day (or press **+** on the task's row under that day). The task dialog opens on that day with everything prefilled; adjust the time and progress and save. Days off cannot receive a drop.
 
 Use the **same task name** for work that spans several days so it merges into a single report row (case, extra spaces and bracketed notes are ignored when matching).
 
@@ -120,7 +123,7 @@ The rules in the Decision section (merging, targets, local storage) are the part
 - **Harder:** data is tied to one browser profile. Losing it without a backup is unrecoverable, so backups are the user's responsibility.
 - **Harder:** tasks merge by name only; two different tasks with the same name end up in one row, and one task with differently worded names ends up in two.
 - **Watch out:** objectives and reflections are a single shared set, not stored per week. Update or clear them at the start of each week.
-- **Watch out:** "lowest completion wins" means an early entry at 50% keeps the row at 50% until that entry is edited, or until Quick edit updates all of them.
+- **Watch out:** "latest completion wins": editing an older entry does not change the report row unless it is the latest entry of that task in the week; Quick edit updates all of them.
 - **Revisit:** per-week objectives and reflections, and in-app links to this guide.
 
 ## Action Items

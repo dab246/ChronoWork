@@ -10,6 +10,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - GitHub Pages deployment: every push to `main` type checks, tests, builds and deploys to https://dab246.github.io/ChronoWork/ (`.github/workflows/deploy-pages.yml`).
 - `BASE_PATH` build setting so the app can be served from a sub-path.
+- Task name suggestions: typing a task name lists the tasks logged before (case-insensitive) with their project, last date, hours and progress; picking one fills the task details.
+- Cumulative task progress: a new entry starts from the progress already logged for that task, cannot go below it (nor above a later entry), and a task at 100% is locked.
+- Timesheet drag & drop: drag a task's hours to another day (or press **+** on its row) to log it again there, with the task dialog prefilled.
+
+### Changed
+
+- Weekly report: a task's completion is now the one of its latest entry in the week instead of the lowest one, and a finished task has no gap reason or solution.
+- Timesheet rows merge task names that differ only by case or spacing, like the report already did.
+- Daily log: the day status switch only offers Office / WFH; leave and other statuses are set through **More statuses**, the Timesheet or the Attendance calendar.
+- Refreshed interface: segmented navigation, page headers, section cards with clear headers, a two-column daily log (form and the day's tasks side by side), a grouped task form, colour-coded timesheet chips and staggered entrance animations (reduced when the system asks for less motion).
+
+### Fixed
+
+- Completion slider flickered endlessly when dragged down from 100%: the gap label appearing next to it moved the slider under the pointer.
+- The category select's arrow touched the right border.
 
 ### Security
 

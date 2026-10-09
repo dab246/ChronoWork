@@ -51,8 +51,8 @@ async function processLogo(file: File): Promise<string> {
 }
 
 const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
-  <section className="space-y-3 pt-4 first:pt-0 border-t first:border-t-0 border-neutral-100">
-    <h4 className="text-xs font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+  <section className="space-y-3 pt-4 first:pt-0 border-t first:border-t-0 border-slate-100">
+    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
       {icon}
       <span>{title}</span>
     </h4>
@@ -79,11 +79,11 @@ const LogoPicker: React.FC<{ value?: string; onChange: (logo: string | undefined
 
   return (
     <>
-      <p className="text-[11px] text-neutral-500">{s.logoHint}</p>
+      <p className="text-[11px] text-slate-500">{s.logoHint}</p>
       <div className="flex items-center gap-3 flex-wrap">
         {value && (
           <>
-            <div className="h-14 px-3 py-2 bg-white border border-neutral-200 rounded-xl flex items-center">
+            <div className="h-14 px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center">
               <img src={value} alt="" className="h-full w-auto object-contain" />
             </div>
             <button type="button" onClick={() => inputRef.current?.click()} className="btn-tonal">
@@ -125,7 +125,7 @@ const OfficeDaysPicker: React.FC<{ value: number[]; onChange: (days: number[]) =
             aria-pressed={selected}
             onClick={() => onChange(toggleDay(value, day))}
             className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border capitalize transition-all ${
-              selected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+              selected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
             }`}
           >
             {name}
@@ -221,7 +221,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
   return (
     <Modal open={isOpen} onClose={onClose} size="lg" icon={<Settings className="w-5 h-5" />} title={s.title}>
       <form onSubmit={handleSave} className="space-y-4">
-        <Section icon={<Building className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionProfile}>
+        <Section icon={<Building className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionProfile}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="field-label" htmlFor="set-name">{s.nameLabel}</label>
@@ -238,11 +238,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           </div>
         </Section>
 
-        <Section icon={<ImageIcon className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionBranding}>
+        <Section icon={<ImageIcon className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionBranding}>
           <LogoPicker value={form.logoDataUrl} onChange={(logo) => set('logoDataUrl', logo)} />
         </Section>
 
-        <Section icon={<Clock className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionWork}>
+        <Section icon={<Clock className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionWork}>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="field-label" htmlFor="set-weekly">{s.weeklyTarget}</label>
@@ -255,12 +255,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           </div>
           <div>
             <span className="field-label">{s.officeDaysLabel}</span>
-            <p className="text-[11px] text-neutral-500 mb-2">{s.officeDaysDesc}</p>
+            <p className="text-[11px] text-slate-500 mb-2">{s.officeDaysDesc}</p>
             <OfficeDaysPicker value={form.defaultOfficeDays} onChange={(days) => set('defaultOfficeDays', days)} />
           </div>
         </Section>
 
-        <Section icon={<Languages className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionLanguage}>
+        <Section icon={<Languages className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionLanguage}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="field-label" htmlFor="set-lang">{s.uiLanguage}</label>
@@ -286,7 +286,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           </div>
         </Section>
 
-        <Section icon={<Github className="w-3.5 h-3.5 text-neutral-700" />} title={s.sectionGithub}>
+        <Section icon={<Github className="w-3.5 h-3.5 text-slate-700" />} title={s.sectionGithub}>
           <div>
             <label className="field-label" htmlFor="set-repos">{s.reposLabel}</label>
             <input id="set-repos" type="text" value={repos} onChange={(e) => setRepos(e.target.value)} placeholder={s.reposPlaceholder} className="input-field text-xs font-mono" />
@@ -303,13 +303,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
               placeholder="github_pat_…"
               className="input-field text-xs font-mono"
             />
-            <p className="text-[11px] text-neutral-500 mt-1">{s.tokenHint}</p>
+            <p className="text-[11px] text-slate-500 mt-1">{s.tokenHint}</p>
           </div>
         </Section>
 
         <button type="submit" className="btn-filled w-full py-2.5">{s.save}</button>
 
-        <Section icon={<Download className="w-3.5 h-3.5 text-neutral-500" />} title={s.sectionData}>
+        <Section icon={<Download className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionData}>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={handleExportBackup} className="btn-outlined">
               <Download className="w-3.5 h-3.5" />

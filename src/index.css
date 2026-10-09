@@ -26,36 +26,59 @@
   }
 }
 
-/* Material elevation levels */
+/* Elevation levels: soft, layered shadows */
 @utility elevation-1 {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 1px 3px 1px rgb(0 0 0 / 0.04);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
 }
 @utility elevation-2 {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 2px 6px 2px rgb(0 0 0 / 0.06);
+  box-shadow: 0 2px 4px -1px rgb(16 24 40 / 0.06), 0 8px 16px -4px rgb(16 24 40 / 0.1);
 }
 @utility elevation-3 {
-  box-shadow: 0 4px 8px 3px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.12);
+  box-shadow: 0 4px 6px -2px rgb(16 24 40 / 0.05), 0 16px 32px -8px rgb(16 24 40 / 0.18);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-slate-50);
+  }
 }
 
 @layer components {
+  /* App canvas: a faint brand glow behind the header */
+  .app-canvas {
+    background:
+      radial-gradient(1200px 380px at 50% -120px, rgb(99 102 241 / 0.09), transparent 70%),
+      var(--color-slate-50);
+  }
+
   /* Surface card that lifts on hover */
   .card {
-    @apply bg-white border border-neutral-200 rounded-2xl elevation-1;
-    transition: box-shadow 250ms var(--ease-emphasized), transform 250ms var(--ease-emphasized);
+    @apply bg-white border border-slate-200/80 rounded-2xl elevation-1;
+    transition: box-shadow 250ms var(--ease-emphasized), transform 250ms var(--ease-emphasized), border-color 250ms;
   }
   .card-hover:hover {
-    @apply elevation-2;
+    @apply elevation-2 border-slate-300/70;
     transform: translateY(-2px);
   }
 
+  /* Small uppercase heading above a group of content */
+  .eyebrow {
+    @apply text-[11px] font-bold text-slate-500 uppercase tracking-[0.08em];
+  }
+
   .btn-filled {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-full elevation-1 transition-[background-color,box-shadow] hover:bg-indigo-700 hover:elevation-2 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-full elevation-1 transition-[background-color,box-shadow,transform] active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
+    background-image: linear-gradient(180deg, var(--color-indigo-500), var(--color-indigo-600));
+  }
+  .btn-filled:hover {
+    @apply elevation-2;
+    background-image: linear-gradient(180deg, var(--color-indigo-600), var(--color-indigo-700));
   }
   .btn-tonal {
     @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-900 bg-indigo-100 rounded-full transition-colors hover:bg-indigo-200 disabled:opacity-50;
   }
   .btn-outlined {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-neutral-800 bg-white border border-neutral-300 rounded-full transition-colors hover:bg-neutral-50 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-full elevation-1 transition-colors hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50;
   }
   .btn-text {
     @apply inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 rounded-full transition-colors hover:bg-indigo-50 disabled:opacity-50;
@@ -64,14 +87,60 @@
     @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 rounded-full elevation-1 transition-colors hover:bg-rose-700;
   }
   .icon-btn {
-    @apply inline-flex items-center justify-center p-2 text-neutral-500 rounded-full transition-colors hover:text-neutral-900 hover:bg-neutral-100;
+    @apply inline-flex items-center justify-center p-2 text-slate-500 rounded-full transition-colors hover:text-slate-900 hover:bg-slate-100;
   }
 
   .input-field {
-    @apply w-full px-3 py-2 text-sm bg-white border border-neutral-300 rounded-xl transition-[border-color,box-shadow] outline-none hover:border-neutral-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20;
+    @apply w-full px-3 py-2 text-sm text-slate-900 bg-white border border-slate-200 rounded-xl transition-[border-color,box-shadow,background-color] outline-none placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 disabled:bg-slate-50 disabled:text-slate-500;
+  }
+  /* Native select: own chevron with room on the right, so it never touches the border */
+  select.input-field {
+    @apply appearance-none pr-10 cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem 1rem;
   }
   .field-label {
-    @apply block text-xs font-semibold text-neutral-700 mb-1.5;
+    @apply block text-xs font-semibold text-slate-700 mb-1.5;
+  }
+
+  /* Segmented control (e.g. office / WFH) */
+  .segmented {
+    @apply relative inline-flex items-center p-1 gap-1 bg-slate-100 rounded-full border border-slate-200/70;
+  }
+
+  /* Range input drawn over a custom track (see ProgressSlider) */
+  .range-input {
+    @apply absolute inset-0 w-full h-full m-0 opacity-0 cursor-pointer appearance-none bg-transparent disabled:cursor-not-allowed;
+  }
+  /* Same thumb width as the drawn thumb, so pointer positions map to the drawn track */
+  .range-input::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+  }
+  .range-input::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 0;
+  }
+
+  /* Timesheet drag & drop */
+  .drop-column {
+    background-color: rgb(99 102 241 / 0.06);
+  }
+  .drop-target {
+    outline: 2px dashed var(--color-indigo-400);
+    outline-offset: -3px;
+    background-color: rgb(99 102 241 / 0.12);
+  }
+  .drop-blocked {
+    background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.12) 0 6px, transparent 6px 12px);
+    cursor: not-allowed;
+  }
+  .hatched {
+    background-image: repeating-linear-gradient(135deg, rgb(148 163 184 / 0.07) 0 6px, transparent 6px 12px);
   }
 }
 

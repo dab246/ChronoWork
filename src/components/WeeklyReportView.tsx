@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle } from 'lucide-react';
+import { FileSpreadsheet, HelpCircle } from 'lucide-react';
 import type { TimeEntry, DayLog, UserSettings, WeeklyObjective, WeeklyReflections, DayStatusType } from '../types';
 import { getWeekDays } from '../utils/dateUtils';
 import { filterEntriesForDays } from '../utils/workdays';
@@ -10,6 +10,7 @@ import { ExportToolbar } from './weeklyReport/ExportToolbar';
 import { WeekStatusPanel } from './weeklyReport/WeekStatusPanel';
 import { ReportSheet } from './weeklyReport/ReportSheet';
 import { ReportGuideModal } from './weeklyReport/ReportGuideModal';
+import { PageHeader, PageStack, Reveal } from '../ui/layout';
 
 interface WeeklyReportViewProps {
   currentDate: Date;
@@ -49,27 +50,31 @@ export const WeeklyReportView: React.FC<WeeklyReportViewProps> = ({
   const actions = useReportExport(reportInput);
 
   return (
-    <div className="space-y-6">
-      {/* Toolbar */}
-      <div className="no-print flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 pb-4 border-b border-neutral-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold tracking-tight text-neutral-900">{t.report.title}</h2>
-            <button type="button" onClick={() => setGuideOpen(true)} className="btn-text py-1">
-              <HelpCircle className="w-4 h-4" />
-              {t.report.pasteGuide}
-            </button>
-          </div>
-          <p className="text-xs text-neutral-500 font-medium mt-0.5">{t.report.subtitle}</p>
-        </div>
-        <WeekNavigator currentDate={currentDate} onChange={onChangeDate} />
-      </div>
+    <PageStack>
+      <PageHeader
+        className="no-print"
+        icon={FileSpreadsheet}
+        title={t.report.title}
+        subtitle={t.report.subtitle}
+        titleExtra={
+          <button type="button" onClick={() => setGuideOpen(true)} className="btn-text py-1">
+            <HelpCircle className="w-4 h-4" />
+            {t.report.pasteGuide}
+          </button>
+        }
+        actions={<WeekNavigator currentDate={currentDate} onChange={onChangeDate} />}
+      />
 
-      <ExportToolbar actions={actions} />
+      <Reveal className="no-print card p-3">
+        <ExportToolbar actions={actions} />
+      </Reveal>
 
-      <WeekStatusPanel weekDays={weekDays} dayLogs={dayLogs} settings={settings} onUpdateDayStatus={onUpdateDayStatus} onResetWeekToDefault={onResetWeekToDefault} />
+      <Reveal>
+        <WeekStatusPanel weekDays={weekDays} dayLogs={dayLogs} settings={settings} onUpdateDayStatus={onUpdateDayStatus} onResetWeekToDefault={onResetWeekToDefault} />
+      </Reveal>
 
-      <ReportSheet
+      <Reveal>
+        <ReportSheet
         weekDays={weekDays}
         weekEntries={weekEntries}
         dayLogs={dayLogs}
@@ -79,9 +84,10 @@ export const WeeklyReportView: React.FC<WeeklyReportViewProps> = ({
         reflections={reflections}
         setReflections={setReflections}
         onUpdateEntry={onUpdateEntry}
-      />
+        />
+      </Reveal>
 
       <ReportGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} reportInput={reportInput} actions={actions} />
-    </div>
+    </PageStack>
   );
 };
