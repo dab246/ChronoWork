@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- README rewritten for users and contributors: screenshots, feature table, quick start, project structure, quality gates, contributors and star history.
 - Settings is a page instead of a dialog (`#/settings/<section>`): a section menu (Profile, Working hours, Reminder, Language, Report, GitHub, Data), one card per section, and every change saved as soon as a field is left. Each section lives in its own component under `src/components/settings/`, registered in `sections.ts`.
 - Tabs have their own URL (`#/daily`, `#/report`, `#/timesheet`, `#/calendar`, `#/performance`), so they can be bookmarked and the browser's Back button works.
 - Weekly report: a task's completion is now the one of its latest entry in the week instead of the lowest one, and a finished task has no gap reason or solution.
@@ -31,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+- CI on every push and pull request: type check, unit tests and production builds (root and Pages sub-path, CSP present) in `ci.yml`; CodeQL analysis of the code and workflows (`codeql.yml`); `bun audit`, dependency review and a Gitleaks secret scan (`security.yml`); weekly runs and Dependabot updates for packages and Actions.
+- `SECURITY.md` with private vulnerability reporting, `CONTRIBUTING.md`, issue forms and a pull request template.
 - The app refuses to run inside a frame (clickjacking), since static hosts like GitHub Pages cannot send `frame-ancestors` / `X-Frame-Options`.
 
 ## [1.1.0] - 2026-10-06

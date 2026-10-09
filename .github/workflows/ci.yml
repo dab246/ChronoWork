@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch / PR cancels the run in progress
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Type check, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies (locked)
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run lint
+
+      - name: Unit tests
+        run: bun run test
+
+      - name: Build (root path)
+        run: bun run build
+
+      - name: Build (GitHub Pages sub-path)
+        run: bun run build
+        env:
+          BASE_PATH: /ChronoWork/
+
+      - name: Check the CSP is in the built page
+        run: grep -q 'http-equiv="Content-Security-Policy"' dist/index.html
