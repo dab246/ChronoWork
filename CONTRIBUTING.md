@@ -41,6 +41,7 @@ Pull requests are merged with **rebase merge**, so keep each commit meaningful a
 - **Every string is translated.** Add it to `src/i18n/vi.ts`, `en.ts` and `fr.ts`; `en` and `fr` are type-checked against `vi`, so a missing key fails the build.
 - **Untrusted data is sanitized.** Anything read from `localStorage` or a backup goes through the sanitizers in `src/utils/storage.ts`; links go through `safeUrl`.
 - **Regular expressions must be linear.** No nested or overlapping quantifiers; anchor them and bound their input. When you add or change one, time it on 10 k / 100 k / 1 M character hostile inputs and mention the result in the PR.
+- **Third-party GitHub Actions are pinned to a commit SHA** (with the tag in a comment); GitHub-owned `actions/*` and `github/*` may use a major tag.
 - **CSP:** no inline scripts, no new external origins. Check `bun run build && bun run preview` after touching scripts, styles, fonts, images or network calls.
 
 ## Tests
