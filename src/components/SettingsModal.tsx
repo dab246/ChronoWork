@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Settings, Download, Upload, RotateCcw, Trash2, Building, Github, Languages, Clock, ImageIcon, X } from 'lucide-react';
+import { Settings, Download, Upload, RotateCcw, Trash2, Building, Github, Languages, Clock, ImageIcon, X, Bell } from 'lucide-react';
 import { LANGUAGES, type Language, type UserSettings } from '../types';
 import {
   exportAllDataJson,
@@ -18,6 +18,8 @@ import { clampNumber, downloadBlob } from '../utils/security';
 import { useI18n } from '../i18n';
 import { Modal } from '../ui/Modal';
 import { useFeedback } from '../ui/feedback';
+import { requestNotificationPermission } from '../services/reminderService';
+import { ReminderSettingsFields } from './ReminderSettingsFields';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -168,7 +170,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
       dailyStandardHours: clampNumber(form.dailyStandardHours, 0, 24, 8),
       defaultRepos: repoList.filter((r) => REPO_PATTERN.test(r)).slice(0, 20),
       githubToken: form.githubToken?.trim() || undefined,
+      reminder: { ...form.reminder, message: form.reminder.message?.trim() || undefined },
     });
+    // Saving is a click, so the browser lets us ask for the notification permission here
+    if (form.reminder.enabled) void requestNotificationPermission();
     notify(s.saved, invalid.length ? { tone: 'info', detail: s.reposInvalid(invalid.join(', ')) } : undefined);
     onClose();
   };
@@ -258,6 +263,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
             <p className="text-[11px] text-slate-500 mb-2">{s.officeDaysDesc}</p>
             <OfficeDaysPicker value={form.defaultOfficeDays} onChange={(days) => set('defaultOfficeDays', days)} />
           </div>
+        </Section>
+
+        <Section icon={<Bell className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionReminder}>
+          <ReminderSettingsFields value={form.reminder} onChange={(reminder) => set('reminder', reminder)} />
         </Section>
 
         <Section icon={<Languages className="w-3.5 h-3.5 text-slate-500" />} title={s.sectionLanguage}>

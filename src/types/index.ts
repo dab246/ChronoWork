@@ -96,6 +96,15 @@ export interface WeeklyReflections {
   proposal: string;
 }
 
+/** End-of-day reminder: notification, chime and spoken message at a set time */
+export interface ReminderSettings {
+  enabled: boolean;
+  time: string; // HH:MM, local time
+  /** Spoken and shown text; the default message of the interface language when empty */
+  message?: string;
+  voice: boolean;
+}
+
 export interface UserSettings {
   userName: string;
   userRole: string;
@@ -108,6 +117,7 @@ export interface UserSettings {
   language: Language;
   reportLanguage?: Language; // Defaults to English
   logoDataUrl?: string; // PNG data URL placed in cell A1 of exported reports
+  reminder: ReminderSettings;
 }
 
 export const DAY_STATUS_CONFIGS: Record<DayStatusType, DayStatusConfig> = {

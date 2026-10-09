@@ -108,6 +108,20 @@ export interface ProgressPosition {
 
 const NO_BOUNDS: ProgressBounds = { min: 0, max: 100, locked: false };
 
+type LoggedAt = Pick<TimeEntry, 'date' | 'createdAt'>;
+
+const latest = (a: TimeEntry | undefined, b: TimeEntry) => (a && compareEntries(a, b) >= 0 ? a : b);
+const earliest = (a: TimeEntry | undefined, b: TimeEntry) => (a && compareEntries(a, b) <= 0 ? a : b);
+
+/** Entries of the task logged just before and just after `self`. */
+function neighbours(entries: TimeEntry[], self: LoggedAt): { previous?: TimeEntry; next?: TimeEntry } {
+  const before = entries.filter((e) => compareEntries(e, self) <= 0);
+  const after = entries.filter((e) => compareEntries(e, self) > 0);
+  return { previous: before.reduce<TimeEntry | undefined>(latest, undefined), next: after.reduce<TimeEntry | undefined>(earliest, undefined) };
+}
+
+const toPoint = (e?: TimeEntry): ProgressPoint | undefined => (e ? { pct: e.completionPct ?? 100, date: e.date } : undefined);
+
 /**
  * Progress of a task is cumulative across its entries, so an entry can neither
  * go below the progress already logged before it, nor above the progress logged after it.
@@ -115,22 +129,12 @@ const NO_BOUNDS: ProgressBounds = { min: 0, max: 100, locked: false };
 export function progressBounds(entries: TimeEntry[], taskName: string, at: ProgressPosition): ProgressBounds {
   const key = taskName.trim() ? taskKey(taskName) : '';
   if (!key) return NO_BOUNDS;
-  const self = { date: at.date, createdAt: at.createdAt ?? Number.POSITIVE_INFINITY };
-  let previous: TimeEntry | undefined;
-  let next: TimeEntry | undefined;
-  for (const entry of entries) {
-    if (entry.id === at.excludeId || taskKey(entry.taskName ?? '') !== key) continue;
-    if (compareEntries(entry, self) <= 0) {
-      if (!previous || compareEntries(entry, previous) > 0) previous = entry;
-    } else if (!next || compareEntries(entry, next) < 0) {
-      next = entry;
-    }
-  }
-  const point = (e?: TimeEntry): ProgressPoint | undefined => (e ? { pct: e.completionPct ?? 100, date: e.date } : undefined);
+  const sameTask = entries.filter((e) => e.id !== at.excludeId && taskKey(e.taskName ?? '') === key);
+  const { previous, next } = neighbours(sameTask, { date: at.date, createdAt: at.createdAt ?? Number.POSITIVE_INFINITY });
   const min = previous?.completionPct ?? 0;
   // Older data may not be monotonic; never let the upper bound fall below the lower one
   const max = Math.max(min, next?.completionPct ?? 100);
-  return { min, max, previous: point(previous), next: point(next), locked: min >= 100 };
+  return { min, max, previous: toPoint(previous), next: toPoint(next), locked: min >= 100 };
 }
 
 export const clampProgress = (pct: number, bounds: Pick<ProgressBounds, 'min' | 'max'>): number => Math.min(bounds.max, Math.max(bounds.min, pct));

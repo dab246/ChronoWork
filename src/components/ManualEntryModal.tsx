@@ -2,7 +2,7 @@ import React from 'react';
 import { Clock, Repeat, Trash2 } from 'lucide-react';
 import type { TimeEntry, UserSettings } from '../types';
 import { formatDateIso, formatLongDate } from '../utils/dateUtils';
-import { useI18n } from '../i18n';
+import { useI18n, type Translations } from '../i18n';
 import { Modal } from '../ui/Modal';
 import { useFeedback } from '../ui/feedback';
 import { TaskForm, type TaskDraft, type TaskTemplate } from './TaskForm';
@@ -51,6 +51,23 @@ const DeleteEntryButton: React.FC<{ entry: TimeEntry; onDelete: (id: string) => 
   );
 };
 
+type DialogMode = 'edit' | 'continue' | 'new';
+
+const modeOf = (editing?: TimeEntry | null, template?: TaskTemplate | null): DialogMode => {
+  if (editing) return 'edit';
+  return template ? 'continue' : 'new';
+};
+
+/** Title, submit label and icon of each dialog mode. */
+function dialogLabels(m: Translations['entryModal'], mode: DialogMode) {
+  const labels = {
+    edit: { title: m.titleEdit, submit: m.submitUpdate, icon: <Clock className="w-5 h-5" /> },
+    continue: { title: m.titleContinue, submit: m.submitNew, icon: <Repeat className="w-5 h-5" /> },
+    new: { title: m.titleNew, submit: m.submitNew, icon: <Clock className="w-5 h-5" /> },
+  };
+  return labels[mode];
+}
+
 export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
   isOpen,
   onClose,
@@ -66,12 +83,9 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
   const { t, lang } = useI18n();
   const m = t.entryModal;
   const date = defaultDate || formatDateIso(new Date());
-  const continuing = !editingEntry && template;
-  const labels = editingEntry
-    ? { title: m.titleEdit, submit: m.submitUpdate, icon: <Clock className="w-5 h-5" /> }
-    : continuing
-      ? { title: m.titleContinue, submit: m.submitNew, icon: <Repeat className="w-5 h-5" /> }
-      : { title: m.titleNew, submit: m.submitNew, icon: <Clock className="w-5 h-5" /> };
+  const mode = modeOf(editingEntry, template);
+  const labels = dialogLabels(m, mode);
+  const deleteAction = editingEntry && onDelete && <DeleteEntryButton entry={editingEntry} onDelete={onDelete} onDone={onClose} />;
 
   const handleSubmit = (draft: TaskDraft) => {
     onSave(draft, editingEntry?.id);
@@ -85,7 +99,7 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
       size="lg"
       icon={labels.icon}
       title={labels.title}
-      subtitle={continuing ? m.continueHint(formatLongDate(date, lang)) : undefined}
+      subtitle={mode === 'continue' ? m.continueHint(formatLongDate(date, lang)) : undefined}
     >
       <TaskForm
         settings={settings}
@@ -93,11 +107,11 @@ export const ManualEntryModal: React.FC<ManualEntryModalProps> = ({
         entries={entries}
         date={date}
         editing={editingEntry}
-        template={editingEntry ? null : template}
+        template={mode === 'continue' ? template : null}
         showDate
         submitLabel={labels.submit}
         onSubmit={handleSubmit}
-        actions={editingEntry && onDelete ? <DeleteEntryButton entry={editingEntry} onDelete={onDelete} onDone={onClose} /> : null}
+        actions={deleteAction || null}
       />
     </Modal>
   );

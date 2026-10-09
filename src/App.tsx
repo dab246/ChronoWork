@@ -9,6 +9,7 @@ import { exportReport } from './report';
 import { I18nProvider, useI18n } from './i18n';
 import { FeedbackProvider, useFeedback } from './ui/feedback';
 import { usePersistentState, useWorkspaceData, type WorkspaceData } from './hooks/useWorkspaceData';
+import { useDailyReminder } from './hooks/useDailyReminder';
 
 import { Header, ActiveTab } from './components/Header';
 import { DayLogView } from './components/DayLogView';
@@ -153,6 +154,16 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
   const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false, entry: null, template: null, date: formatDateIso(new Date()) });
   const [dayStatusDate, setDayStatusDate] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  useDailyReminder({
+    settings,
+    entries: data.entries,
+    dayLogs: data.dayLogs,
+    onOpen: () => {
+      setActiveTab('daily');
+      setCurrentDate(new Date());
+    },
+  });
 
   const openNewTaskModal = (dateIso?: string) => setTaskModal({ open: true, entry: null, template: null, date: dateIso || formatDateIso(currentDate) });
   const openEditTaskModal = (entry: TimeEntry) => setTaskModal({ open: true, entry, template: null, date: entry.date });

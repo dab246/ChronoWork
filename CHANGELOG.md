@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Task name suggestions: typing a task name lists the tasks logged before (case-insensitive) with their project, last date, hours and progress; picking one fills the task details.
 - Cumulative task progress: a new entry starts from the progress already logged for that task, cannot go below it (nor above a later entry), and a task at 100% is locked.
 - Timesheet drag & drop: drag a task's hours to another day (or press **+** on its row) to log it again there, with the task dialog prefilled.
+- End-of-day reminder (Settings → End-of-day reminder, on by default at 16:30): on working days not fully logged, a system notification, a “ding ding” chime and the message read aloud with text-to-speech (system voice of the interface language), plus an in-app message. The message is editable; **Test now** previews it. Works while ChronoWork is open, also in a background tab.
 
 ### Changed
 

@@ -2,6 +2,7 @@ import {
   TimeEntry,
   DayLog,
   UserSettings,
+  ReminderSettings,
   WeeklyObjective,
   WeeklyReflections,
   Language,
@@ -21,6 +22,8 @@ const STORAGE_KEYS = {
   SETTINGS: 'chronowork_settings_v3',
   OBJECTIVES: 'chronowork_objectives_v3',
   REFLECTIONS: 'chronowork_reflections_v3',
+  /** Date (YYYY-MM-DD) of the last reminder, so it fires once a day; not part of backups */
+  REMINDER_LAST: 'chronowork_reminder_last_v1',
 };
 
 export const BACKUP_VERSION = '4.0';
@@ -53,6 +56,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   defaultOfficeDays: [1, 2, 3, 4, 5],
   defaultRepos: [],
   language: 'vi',
+  reminder: { enabled: true, time: '16:30', voice: true },
 };
 
 export const DEFAULT_REFLECTIONS: WeeklyReflections = {
@@ -90,6 +94,16 @@ const isOfficeDay = (d: unknown): d is number => Number.isInteger(d) && (d as nu
 const isRepo = (r: unknown): r is string => typeof r === 'string' && REPO_PATTERN.test(r);
 const FOCUS_LEVELS: readonly FocusLevel[] = ['deep', 'normal', 'shallow'];
 
+export function sanitizeReminder(raw: unknown, base: ReminderSettings = DEFAULT_SETTINGS.reminder): ReminderSettings {
+  if (!isRecord(raw)) return { ...base };
+  return {
+    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : base.enabled,
+    time: typeof raw.time === 'string' && TIME_PATTERN.test(raw.time) ? raw.time : base.time,
+    message: optionalText(raw.message, 200),
+    voice: typeof raw.voice === 'boolean' ? raw.voice : base.voice,
+  };
+}
+
 export function sanitizeSettings(raw: unknown, base: UserSettings = DEFAULT_SETTINGS): UserSettings {
   if (!isRecord(raw)) return { ...base };
   const text = (key: 'userName' | 'userRole' | 'companyName') => cleanText(raw[key] ?? base[key], 120);
@@ -105,6 +119,7 @@ export function sanitizeSettings(raw: unknown, base: UserSettings = DEFAULT_SETT
     language: oneOf(raw.language, LANGUAGES) ?? base.language,
     reportLanguage: oneOf(raw.reportLanguage, LANGUAGES),
     logoDataUrl: sanitizeLogo(raw.logoDataUrl),
+    reminder: sanitizeReminder(raw.reminder, base.reminder),
   };
 }
 
@@ -229,6 +244,12 @@ export const getStoredObjectives = () => sanitizeObjectives(readJson(STORAGE_KEY
 export const saveStoredObjectives = (objs: WeeklyObjective[]) => writeJson(STORAGE_KEYS.OBJECTIVES, objs);
 export const getStoredReflections = () => sanitizeReflections(readJson(STORAGE_KEYS.REFLECTIONS));
 export const saveStoredReflections = (refs: WeeklyReflections) => writeJson(STORAGE_KEYS.REFLECTIONS, refs);
+
+export function getReminderLastDate(): string | undefined {
+  const raw = readJson(STORAGE_KEYS.REMINDER_LAST);
+  return isIsoDate(raw) ? raw : undefined;
+}
+export const saveReminderLastDate = (dateIso: string) => writeJson(STORAGE_KEYS.REMINDER_LAST, dateIso);
 
 export function newId(prefix: string): string {
   const random =
