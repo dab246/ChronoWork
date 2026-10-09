@@ -52,12 +52,12 @@ const TsvData: React.FC<{ tsv: string }> = ({ tsv }) => {
   return (
     <div className="text-xs">
       <div className="flex items-center justify-between pb-1.5">
-        <span className="font-bold text-neutral-800">{t.report.guide.tsvLabel}</span>
+        <span className="font-bold text-slate-800">{t.report.guide.tsvLabel}</span>
         <button type="button" onClick={copyTsv} className="btn-text">
           {t.report.guide.copyTsv}
         </button>
       </div>
-      <textarea readOnly rows={10} value={tsv} className="w-full font-mono text-[11px] p-2 bg-neutral-50 border border-neutral-300 rounded-xl text-neutral-800" />
+      <textarea readOnly rows={10} value={tsv} className="w-full font-mono text-[11px] p-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-800" />
     </div>
   );
 };
@@ -101,7 +101,7 @@ export const ReportGuideModal: React.FC<ReportGuideModalProps> = ({ open, onClos
         </div>
       }
     >
-      <div role="tablist" className="flex border-b border-neutral-200 gap-4 text-xs font-semibold mb-4">
+      <div role="tablist" className="flex border-b border-slate-200 gap-4 text-xs font-semibold mb-4">
         {(['paste', 'data'] as const).map((id) => (
           <button
             key={id}
@@ -109,7 +109,7 @@ export const ReportGuideModal: React.FC<ReportGuideModalProps> = ({ open, onClos
             role="tab"
             aria-selected={tab === id}
             onClick={() => setTab(id)}
-            className={`pb-2.5 border-b-2 transition-colors ${tab === id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}
+            className={`pb-2.5 border-b-2 transition-colors ${tab === id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             {tabLabels[id]}
           </button>

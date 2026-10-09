@@ -41,8 +41,8 @@ const SheetHeader: React.FC<SheetHeaderProps> = ({ r, weekDays, weekEntries, day
           <CompanyMark settings={settings} />
           <div className="text-2xl font-bold leading-tight">{r.reportTitle}</div>
           <div className="text-2xl font-bold leading-tight">{r.weekFromTo(getWeekNumber(weekDays[0]), formatShortDate(weekDays[0]), formatShortDate(weekDays[4]))}</div>
-          <span className="no-print absolute right-1 top-1 text-[11px] text-neutral-500 font-sans">
-            {t.report.totalHours}: <strong className="text-neutral-900">{formatHours(sumHours(weekEntries))}h</strong>
+          <span className="no-print absolute right-1 top-1 text-[11px] text-slate-500 font-sans">
+            {t.report.totalHours}: <strong className="text-slate-900">{formatHours(sumHours(weekEntries))}h</strong>
           </span>
         </td>
       </tr>
@@ -65,7 +65,7 @@ const SignatureRow: React.FC<{ r: Translations['reportDoc']; userName: string }>
     <td />
     <td colSpan={2} className="text-center align-top text-[14px]">
       {r.sigEmployee}
-      <div className="mt-10 text-neutral-600">{userName}</div>
+      <div className="mt-10 text-slate-600">{userName}</div>
     </td>
     <td colSpan={3} />
     <td colSpan={2} className="text-center align-top text-[14px]">{r.sigManager}</td>

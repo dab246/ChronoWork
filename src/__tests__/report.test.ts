@@ -27,8 +27,9 @@ function entry(partial: Partial<TimeEntry>): TimeEntry {
 }
 
 const entries = [
-  entry({ taskName: 'Build feature #1', hours: 4, githubUrl: 'https://github.com/o/r/pull/1', completionPct: 90, gapReason: 'Waiting review' }),
-  entry({ taskName: 'Build feature #1', hours: 6, date: '2026-09-22' }),
+  // Stored newest first, like the app does
+  entry({ taskName: 'build FEATURE #1', hours: 6, date: '2026-09-22', completionPct: 90, gapPct: 10 }),
+  entry({ taskName: 'Build feature #1', hours: 4, githubUrl: 'https://github.com/o/r/pull/1', completionPct: 60, gapPct: 40, gapReason: 'Waiting review' }),
   entry({ taskName: '<img src=x onerror=alert(1)>', hours: 1 }),
   entry({ taskName: '=HYPERLINK("http://evil","x")', hours: 1 }),
 ];
@@ -36,11 +37,30 @@ const entries = [
 const input = { weekDays, entries, dayLogs: {}, settings, objectives: [], reflections: { wentWell: 'Good', challenging: '', proposal: '' } };
 
 describe('aggregateWeeklyTasks', () => {
-  it('sums hours of the same task and keeps the lowest completion', () => {
+  it('sums hours of the same task (any case) and keeps the latest completion', () => {
     const [first] = aggregateWeeklyTasks(entries);
-    expect(first.label).toBe('Build feature #1');
     expect(first.hours).toBe(10);
     expect(first.completionPct).toBe(90);
+    expect(first.gapPct).toBe(10);
+    expect(first.gapReason).toBe('Waiting review');
+  });
+
+  it('takes the latest entry by date, then by creation time, whatever the stored order', () => {
+    const tasks = aggregateWeeklyTasks([
+      entry({ taskName: 'T', date: '2026-09-23', completionPct: 70, createdAt: 5 }),
+      entry({ taskName: 'T', date: '2026-09-23', completionPct: 80, createdAt: 9 }),
+      entry({ taskName: 'T', date: '2026-09-24', completionPct: 50, createdAt: 1 }),
+      entry({ taskName: 'T', date: '2026-09-21', completionPct: 95, createdAt: 99 }),
+    ]);
+    expect(tasks[0].completionPct).toBe(50);
+  });
+
+  it('drops the gap reason and solution once the task is finished', () => {
+    const [task] = aggregateWeeklyTasks([
+      entry({ taskName: 'T', completionPct: 40, gapReason: 'Blocked', gapSolution: 'Ask' }),
+      entry({ taskName: 'T', date: '2026-09-22', completionPct: 100 }),
+    ]);
+    expect(task).toMatchObject({ completionPct: 100, gapPct: 0, gapReason: '', gapSolution: '' });
   });
 });
 

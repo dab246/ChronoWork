@@ -57,10 +57,10 @@ const ModalHeader: React.FC<ModalHeaderProps> = ({ title, subtitle, icon, onClos
           </div>
         )}
         <div className="min-w-0">
-          <h3 id={titleId} className="text-base font-bold text-neutral-900 truncate">
+          <h3 id={titleId} className="text-base font-bold text-slate-900 truncate">
             {title}
           </h3>
-          {subtitle && <p className="text-xs text-neutral-500 font-medium">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-slate-500 font-medium">{subtitle}</p>}
         </div>
       </div>
       <button
@@ -68,7 +68,7 @@ const ModalHeader: React.FC<ModalHeaderProps> = ({ title, subtitle, icon, onClos
         data-modal-close
         onClick={onClose}
         aria-label={t.common.close}
-        className="p-2 -mr-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-full transition-colors"
+        className="p-2 -mr-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
       >
         <X className="w-5 h-5" />
       </button>
@@ -92,7 +92,7 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, subtitle, ic
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="fixed inset-0 bg-neutral-950/45 backdrop-blur-[2px]" aria-hidden="true" />
+          <div className="fixed inset-0 bg-slate-950/45 backdrop-blur-[2px]" aria-hidden="true" />
           {/* min-h-full (not flex centering on the scroller) keeps the top of a tall dialog reachable */}
           <div className="relative flex min-h-full items-start sm:items-center justify-center p-4">
             <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
@@ -110,7 +110,7 @@ export const Modal: React.FC<ModalProps> = ({ open, onClose, title, subtitle, ic
             >
               <ModalHeader title={title} subtitle={subtitle} icon={icon} onClose={onClose} titleId={titleId} />
               <div className="px-6 pb-6">{children}</div>
-              {footer && <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-100 rounded-b-3xl">{footer}</div>}
+              {footer && <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 rounded-b-3xl">{footer}</div>}
             </motion.div>
           </div>
         </motion.div>

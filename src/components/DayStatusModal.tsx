@@ -79,11 +79,11 @@ export const DayStatusModal: React.FC<DayStatusModalProps> = ({ isOpen, onClose,
                   aria-pressed={selected}
                   onClick={() => handleStatusChange(id)}
                   className={`flex flex-col items-start p-3 rounded-2xl border text-left transition-all ${
-                    selected ? 'border-indigo-600 bg-indigo-600 text-white elevation-2' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-800'
+                    selected ? 'border-indigo-600 bg-indigo-600 text-white elevation-2' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-800'
                   }`}
                 >
                   <span className="text-xs font-bold leading-snug">{t.status[id].label}</span>
-                  <span className={`text-[10px] mt-0.5 line-clamp-1 ${selected ? 'text-indigo-100' : 'text-neutral-500'}`}>{t.status[id].description}</span>
+                  <span className={`text-[10px] mt-0.5 line-clamp-1 ${selected ? 'text-indigo-100' : 'text-slate-500'}`}>{t.status[id].description}</span>
                 </button>
               );
             })}

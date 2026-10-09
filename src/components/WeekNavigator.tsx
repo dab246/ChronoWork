@@ -23,7 +23,7 @@ export const WeekNavigator: React.FC<WeekNavigatorProps> = ({ currentDate, onCha
           {t.common.thisWeek}
         </button>
       )}
-      <div className="flex items-center bg-white border border-neutral-300 rounded-full p-0.5 elevation-1">
+      <div className="flex items-center bg-white border border-slate-300 rounded-full p-0.5 elevation-1">
         <button type="button" onClick={() => onChange(addDays(currentDate, -7))} aria-label={t.common.prevWeek} title={t.common.prevWeek} className="icon-btn p-1.5">
           <ChevronLeft className="w-4 h-4" />
         </button>

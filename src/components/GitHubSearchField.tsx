@@ -54,7 +54,7 @@ function useGitHubSearch(query: string, settings: UserSettings, onResults: () =>
 
 const SearchResults: React.FC<{ results: GitHubItem[]; onChoose: (item: GitHubItem) => void }> = ({ results, onChoose }) => {
   const { t } = useI18n();
-  if (results.length === 0) return <p className="px-3 py-3 text-xs text-neutral-500">{t.dayLog.githubNoResult}</p>;
+  if (results.length === 0) return <p className="px-3 py-3 text-xs text-slate-500">{t.dayLog.githubNoResult}</p>;
   return (
     <>
       {results.map((item) => (
@@ -68,10 +68,10 @@ const SearchResults: React.FC<{ results: GitHubItem[]; onChoose: (item: GitHubIt
         >
           <GitPullRequest className={`w-4 h-4 shrink-0 mt-0.5 ${item.isPullRequest ? 'text-purple-600' : 'text-emerald-600'}`} />
           <span className="flex-1 min-w-0">
-            <span className="block text-xs font-semibold text-neutral-900 truncate">
+            <span className="block text-xs font-semibold text-slate-900 truncate">
               #{item.number} {item.title}
             </span>
-            <span className="block text-[10px] text-neutral-500">
+            <span className="block text-[10px] text-slate-500">
               {item.repoName} · {item.state}
             </span>
           </span>
@@ -114,9 +114,9 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(results.length > 0)}
-          className="input-field pl-9 pr-9 text-xs bg-neutral-50"
+          className="input-field pl-9 pr-9 text-xs bg-slate-50"
         />
-        <GitPullRequest className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <GitPullRequest className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         {loading && (
           <div
             className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin absolute right-3 top-1/2 -translate-y-1/2"
@@ -132,7 +132,7 @@ export const GitHubSearchField: React.FC<GitHubSearchFieldProps> = ({ settings, 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 top-full mt-1 bg-white border border-neutral-200 rounded-xl elevation-3 z-30 max-h-64 overflow-y-auto py-1"
+            className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl elevation-3 z-30 max-h-64 overflow-y-auto py-1"
             role="listbox"
           >
             <SearchResults results={results} onChoose={choose} />

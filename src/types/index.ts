@@ -165,7 +165,7 @@ export const DAY_STATUS_CONFIGS: Record<DayStatusType, DayStatusConfig> = {
     isOfficeDay: false,
     isOffDay: true,
     defaultHours: 0,
-    badgeClass: 'text-neutral-700 bg-neutral-100 border-neutral-300',
+    badgeClass: 'text-slate-700 bg-slate-100 border-slate-300',
   },
   weekend: {
     id: 'weekend',
@@ -173,7 +173,7 @@ export const DAY_STATUS_CONFIGS: Record<DayStatusType, DayStatusConfig> = {
     isOfficeDay: false,
     isOffDay: false,
     defaultHours: 0,
-    badgeClass: 'text-neutral-500 bg-neutral-50 border-neutral-200',
+    badgeClass: 'text-slate-500 bg-slate-50 border-slate-200',
   },
 };
 

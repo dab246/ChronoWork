@@ -27,9 +27,9 @@ const DayStatusCard: React.FC<DayStatusCardProps> = ({ day, status, onUpdateDayS
   ];
   return (
     <div className={`p-2.5 rounded-xl border text-xs transition-colors ${CARD_TONE[status] ?? LEAVE_TONE}`}>
-      <div className="flex items-center justify-between font-bold text-neutral-800 mb-1.5">
+      <div className="flex items-center justify-between font-bold text-slate-800 mb-1.5">
         <span className="capitalize">{getDayName(day, lang)}</span>
-        <span className="text-[11px] text-neutral-500 tabular-nums">{formatShortDate(day)}</span>
+        <span className="text-[11px] text-slate-500 tabular-nums">{formatShortDate(day)}</span>
       </div>
       <div className="grid grid-cols-3 gap-1">
         {options.map(({ id, label, active, tone }) => (
@@ -39,7 +39,7 @@ const DayStatusCard: React.FC<DayStatusCardProps> = ({ day, status, onUpdateDayS
             aria-pressed={active}
             onClick={() => onUpdateDayStatus(iso, id)}
             className={`py-1 px-1 text-[11px] font-semibold rounded-full text-center transition-colors truncate ${
-              active ? `${tone} text-white` : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+              active ? `${tone} text-white` : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
           >
             {label}
@@ -63,10 +63,10 @@ export const WeekStatusPanel: React.FC<WeekStatusPanelProps> = ({ weekDays, dayL
   const { t } = useI18n();
   return (
     <div className="no-print card p-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-neutral-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-slate-100">
         <div>
-          <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wide">{t.report.weekStatusTitle}</h3>
-          <p className="text-[11px] text-neutral-500">{t.report.weekStatusSubtitle}</p>
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">{t.report.weekStatusTitle}</h3>
+          <p className="text-[11px] text-slate-500">{t.report.weekStatusSubtitle}</p>
         </div>
         <button type="button" onClick={() => onResetWeekToDefault(weekDays)} title={t.report.useDefaultDaysHint} className="btn-text">
           <RotateCcw className="w-3.5 h-3.5" />

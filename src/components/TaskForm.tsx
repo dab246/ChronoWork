@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Link2, X } from 'lucide-react';
 import { useI18n } from '../i18n';
@@ -6,16 +6,23 @@ import { TASK_CATEGORIES, type TaskCategory, type TimeEntry, type UserSettings }
 import { DatePicker } from '../ui/DatePicker';
 import { formatDateIso, formatLongDate, parseDateIso } from '../utils/dateUtils';
 import { safeUrl } from '../utils/security';
+import { buildTaskSuggestions, clampProgress, groupByTask, progressBounds, taskKey, type ProgressBounds, type TaskSuggestion } from '../utils/taskHistory';
 import { GitHubSearchField, projectForRepo } from './GitHubSearchField';
-import { initialState, toDraft, validationError, type FormState, type TaskDraft } from './taskFormModel';
+import { ProgressField } from './ProgressField';
+import { TaskNameField } from './TaskNameField';
+import { applyTemplate, initialState, toDraft, validationError, type FormState, type TaskDraft, type TaskTemplate } from './taskFormModel';
 
-export type { TaskDraft } from './taskFormModel';
+export type { TaskDraft, TaskTemplate } from './taskFormModel';
 
 interface TaskFormProps {
   settings: UserSettings;
   projects: string[];
+  /** Every logged entry: source of the task name suggestions and of the progress history */
+  entries: TimeEntry[];
   date: string;
   editing?: TimeEntry | null;
+  /** Task to continue on `date` (new entry prefilled from it) */
+  template?: TaskTemplate | null;
   showDate?: boolean;
   submitLabel: string;
   onSubmit: (draft: TaskDraft) => void;
@@ -101,7 +108,7 @@ const HoursField: React.FC<{ id: string; value: string; onValue: (value: string)
               key={h}
               type="button"
               onClick={() => onValue(String(h))}
-              className={`px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${active ? 'bg-indigo-600 text-white' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800'}`}
+              className={`px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${active ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}
             >
               {h}h
             </button>
@@ -112,60 +119,50 @@ const HoursField: React.FC<{ id: string; value: string; onValue: (value: string)
   );
 };
 
-const ProgressSection: React.FC<{ form: FormState; set: SetField; fieldId: (name: string) => string }> = ({ form, set, fieldId }) => {
+const GapFields: React.FC<{ form: FormState; set: SetField; fieldId: (name: string) => string }> = ({ form, set, fieldId }) => {
   const { t } = useI18n();
-  const gap = 100 - form.completionPct;
-  const hasGap = gap > 0;
   return (
-    <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-bold text-neutral-800">{t.dayLog.progressTitle}</span>
-        <div className="flex items-center gap-2">
-          <label htmlFor={fieldId('pct')} className="text-xs text-neutral-500 font-medium">
-            {t.dayLog.completionLabel}
-          </label>
-          <input
-            id={fieldId('pct')}
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={form.completionPct}
-            onChange={(e) => set('completionPct', Number(e.target.value))}
-            className="w-28 accent-indigo-600"
-          />
-          <span className="w-11 text-right text-xs font-black tabular-nums">{form.completionPct}%</span>
-          {hasGap && <span className="text-xs text-amber-700 font-bold">({t.dayLog.gapLabel(gap)})</span>}
-        </div>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {hasGap && (
-          <motion.div {...expand} transition={{ duration: 0.2 }} className="overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-neutral-200">
-              <TextField
-                id={fieldId('reason')}
-                label={t.dayLog.gapReasonLabel}
-                maxLength={2000}
-                placeholder={t.dayLog.gapReasonPlaceholder}
-                value={form.gapReason}
-                onValue={(v) => set('gapReason', v)}
-              />
-              <TextField
-                id={fieldId('solution')}
-                label={t.dayLog.gapSolutionLabel}
-                maxLength={2000}
-                placeholder={t.dayLog.gapSolutionPlaceholder}
-                value={form.gapSolution}
-                onValue={(v) => set('gapSolution', v)}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-slate-200/80">
+      <TextField
+        id={fieldId('reason')}
+        label={t.dayLog.gapReasonLabel}
+        maxLength={2000}
+        placeholder={t.dayLog.gapReasonPlaceholder}
+        value={form.gapReason}
+        onValue={(v) => set('gapReason', v)}
+      />
+      <TextField
+        id={fieldId('solution')}
+        label={t.dayLog.gapSolutionLabel}
+        maxLength={2000}
+        placeholder={t.dayLog.gapSolutionPlaceholder}
+        value={form.gapSolution}
+        onValue={(v) => set('gapSolution', v)}
+      />
     </div>
   );
 };
+
+/** Numbered group of fields, so the form reads as three short steps. */
+const FormGroup: React.FC<{ step: number; title: string; aside?: React.ReactNode; tinted?: boolean; children: React.ReactNode }> = ({
+  step,
+  title,
+  aside,
+  tinted,
+  children,
+}) => (
+  <fieldset className={`rounded-2xl border p-4 space-y-3 ${tinted ? 'bg-slate-50/70 border-slate-200/80' : 'bg-white border-slate-200/80'}`}>
+    <legend className="sr-only">{title}</legend>
+    <div className="flex items-center justify-between gap-2" aria-hidden="true">
+      <div className="flex items-center gap-2">
+        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">{step}</span>
+        <span className="eyebrow text-slate-700">{title}</span>
+      </div>
+      {aside}
+    </div>
+    {children}
+  </fieldset>
+);
 
 const CategoryField: React.FC<{ id: string; value: TaskCategory; onValue: (value: TaskCategory) => void }> = ({ id, value, onValue }) => {
   const { t } = useI18n();
@@ -195,26 +192,53 @@ const DateField: React.FC<{ value: string; onValue: (value: string) => void }> =
   );
 };
 
-export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, editing, showDate, submitLabel, onSubmit, actions }) => {
+/** Progress bounds of the task being typed, from the entries logged before and after it. */
+function useProgressBounds(entries: TimeEntry[], form: FormState, editing?: TimeEntry | null) {
+  const groups = useMemo(() => groupByTask(entries), [entries]);
+  const boundsFor = (taskName: string, date: string): ProgressBounds =>
+    progressBounds(groups.get(taskKey(taskName)) ?? [], taskName, { date, createdAt: editing?.createdAt, excludeId: editing?.id });
+  return { bounds: boundsFor(form.taskName, form.date), boundsFor };
+}
+
+/** Completion to start from when the task changes: where it was left, or 100% for a new task. */
+const startingPct = (bounds: ProgressBounds) => (bounds.previous ? bounds.min : clampProgress(100, bounds));
+
+export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, entries, date, editing, template, showDate, submitLabel, onSubmit, actions }) => {
   const { t } = useI18n();
   const ids = useId();
-  const [form, setForm] = useState<FormState>(() => initialState(editing, date));
+  const [form, setForm] = useState<FormState>(() => initialState(editing, date, template));
   const [error, setError] = useState('');
+  const suggestions = useMemo(() => buildTaskSuggestions(entries), [entries]);
+  const { bounds, boundsFor } = useProgressBounds(entries, form, editing);
+  const completionPct = clampProgress(form.completionPct, bounds);
 
   useEffect(() => {
-    setForm(initialState(editing, date));
+    setForm(initialState(editing, date, template));
     setError('');
-  }, [editing, date]);
+  }, [editing, date, template]);
 
   const set: SetField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
   const fieldId = (name: string) => `${ids}-${name}`;
+
+  /** Typing the name of a task logged before picks up its progress (new entries only). */
+  const changeTaskName = (taskName: string) =>
+    setForm((f) => {
+      const next = { ...f, taskName };
+      if (editing || taskKey(taskName) === taskKey(f.taskName)) return next;
+      const before = boundsFor(f.taskName, f.date);
+      const after = boundsFor(taskName, f.date);
+      return after.previous || before.previous ? { ...next, completionPct: startingPct(after) } : next;
+    });
+
+  const pickSuggestion = (item: TaskSuggestion) =>
+    setForm((f) => ({ ...applyTemplate(f, item), completionPct: startingPct(boundsFor(item.taskName, f.date)) }));
 
   const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     const message = validationError(form, t.dayLog);
     setError(message);
     if (message) return;
-    onSubmit(toDraft(form));
+    onSubmit(toDraft(form, bounds));
     if (!editing) setForm(initialState(null, form.date));
   };
 
@@ -222,80 +246,90 @@ export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, ed
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <FormError message={error} />
 
-      <GitHubSearchField
-        settings={settings}
-        onSelect={(item) =>
-          setForm((f) => ({
-            ...f,
-            taskName: `${item.title} #${item.number}`,
-            githubUrl: item.html_url,
-            githubNumber: item.number,
-            project: projectForRepo(item.repoName, projects) ?? f.project,
-          }))
-        }
-      />
+      <FormGroup step={1} title={t.dayLog.groupTask}>
+        <GitHubSearchField
+          settings={settings}
+          onSelect={(item) =>
+            setForm((f) => ({
+              ...f,
+              taskName: `${item.title} #${item.number}`,
+              githubUrl: item.html_url,
+              githubNumber: item.number,
+              project: projectForRepo(item.repoName, projects) ?? f.project,
+            }))
+          }
+        />
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-        <div className="md:col-span-7">
-          <TextField
-            id={fieldId('task')}
-            label={t.dayLog.taskNameLabel}
-            maxLength={500}
-            placeholder={t.dayLog.taskNamePlaceholder}
-            value={form.taskName}
-            onValue={(v) => set('taskName', v)}
-            className="input-field font-semibold"
-          />
-          <LinkPreview url={form.githubUrl} onRemove={() => set('githubUrl', '')} />
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="md:col-span-7">
+            <TaskNameField
+              id={fieldId('task')}
+              label={t.dayLog.taskNameLabel}
+              placeholder={t.dayLog.taskNamePlaceholder}
+              value={form.taskName}
+              suggestions={suggestions}
+              onChange={changeTaskName}
+              onPick={pickSuggestion}
+            />
+            <LinkPreview url={form.githubUrl} onRemove={() => set('githubUrl', '')} />
+          </div>
+          <div className="md:col-span-5">
+            <TextField
+              id={fieldId('project')}
+              label={t.dayLog.projectLabel}
+              list={fieldId('projects')}
+              maxLength={120}
+              placeholder={t.dayLog.projectPlaceholder}
+              value={form.project}
+              onValue={(v) => set('project', v)}
+              className="input-field"
+            />
+            <datalist id={fieldId('projects')}>
+              {projects.map((p) => (
+                <option key={p} value={p} />
+              ))}
+            </datalist>
+          </div>
         </div>
-        <div className="md:col-span-5">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <TextField
-            id={fieldId('project')}
-            label={t.dayLog.projectLabel}
-            list={fieldId('projects')}
-            maxLength={120}
-            placeholder={t.dayLog.projectPlaceholder}
-            value={form.project}
-            onValue={(v) => set('project', v)}
+            id={fieldId('link')}
+            type="url"
+            label={t.dayLog.linkLabel}
+            maxLength={2048}
+            placeholder={t.dayLog.linkPlaceholder}
+            value={form.githubUrl}
+            onValue={(v) => set('githubUrl', v)}
             className="input-field"
           />
-          <datalist id={fieldId('projects')}>
-            {projects.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
+          <TextField
+            id={fieldId('desc')}
+            label={t.dayLog.descriptionLabel}
+            maxLength={2000}
+            placeholder={t.dayLog.descriptionPlaceholder}
+            value={form.description}
+            onValue={(v) => set('description', v)}
+            className="input-field"
+          />
         </div>
-      </div>
+      </FormGroup>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {showDate && <DateField value={form.date} onValue={(v) => set('date', v)} />}
-        <CategoryField id={fieldId('category')} value={form.category} onValue={(v) => set('category', v)} />
-        <div className={showDate ? 'sm:col-span-2' : ''}>
-          <HoursField id={fieldId('hours')} value={form.hours} onValue={(v) => set('hours', v)} />
+      <FormGroup step={2} title={t.dayLog.groupTime}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {showDate && <DateField value={form.date} onValue={(v) => set('date', v)} />}
+          <CategoryField id={fieldId('category')} value={form.category} onValue={(v) => set('category', v)} />
+          <div className={showDate ? 'sm:col-span-2' : ''}>
+            <HoursField id={fieldId('hours')} value={form.hours} onValue={(v) => set('hours', v)} />
+          </div>
         </div>
-      </div>
+      </FormGroup>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <TextField
-          id={fieldId('link')}
-          type="url"
-          label={t.dayLog.linkLabel}
-          maxLength={2048}
-          placeholder={t.dayLog.linkPlaceholder}
-          value={form.githubUrl}
-          onValue={(v) => set('githubUrl', v)}
-        />
-        <TextField
-          id={fieldId('desc')}
-          label={t.dayLog.descriptionLabel}
-          maxLength={2000}
-          placeholder={t.dayLog.descriptionPlaceholder}
-          value={form.description}
-          onValue={(v) => set('description', v)}
-        />
-      </div>
-
-      <ProgressSection form={form} set={set} fieldId={fieldId} />
+      <FormGroup step={3} title={t.dayLog.progressTitle} tinted>
+        <ProgressField id={fieldId('pct')} value={completionPct} bounds={bounds} onChange={(pct) => set('completionPct', pct)}>
+          <GapFields form={form} set={set} fieldId={fieldId} />
+        </ProgressField>
+      </FormGroup>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <input
@@ -305,11 +339,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({ settings, projects, date, ed
           placeholder={t.dayLog.remarkPlaceholder}
           value={form.remark}
           onChange={(e) => set('remark', e.target.value)}
-          className="input-field text-xs flex-1"
+          className="input-field flex-1"
         />
         <div className="flex items-center justify-end gap-2">
           {actions}
-          <button type="submit" className="btn-filled px-5 py-2.5">
+          <button type="submit" className="btn-filled px-5 py-2.5 text-sm">
             {submitLabel}
           </button>
         </div>
