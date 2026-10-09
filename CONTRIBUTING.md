@@ -64,3 +64,7 @@ New fields in `UserSettings` need a default in `DEFAULT_SETTINGS` and a sanitize
 ## Architecture decisions
 
 Decisions that shape the app are recorded in [`docs/adr/`](docs/adr/). If your change alters one of them, update the ADR in the same pull request. User-visible changes go into the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).

@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - CI on every push and pull request: type check, unit tests and production builds (root and Pages sub-path, CSP present) in `ci.yml`; CodeQL analysis of the code and workflows (`codeql.yml`); `bun audit`, dependency review and a Gitleaks secret scan (`security.yml`); weekly runs and Dependabot updates for packages and Actions.
+- MIT license (`LICENSE`).
 - `SECURITY.md` with private vulnerability reporting, `CONTRIBUTING.md`, issue forms and a pull request template.
 - The app refuses to run inside a frame (clickjacking), since static hosts like GitHub Pages cannot send `frame-ancestors` / `X-Frame-Options`.
 
