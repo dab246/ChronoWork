@@ -28,6 +28,7 @@ End-of-day work log, weekly timesheet, attendance calendar, performance insights
 [![Contributors](https://img.shields.io/github/contributors/dab246/ChronoWork?style=flat-square&color=10b981)](https://github.com/dab246/ChronoWork/graphs/contributors)
 [![Last commit](https://img.shields.io/github/last-commit/dab246/ChronoWork?style=flat-square&color=6366f1)](https://github.com/dab246/ChronoWork/commits/main)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-22c55e?style=flat-square)](CONTRIBUTING.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0ea5e9?style=flat-square)](LICENSE)
 
 [**Open the app**](https://dab246.github.io/ChronoWork/) · [User guide](docs/adr/0002-user-workflow-and-guide.md) · [Report a bug](https://github.com/dab246/ChronoWork/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/dab246/ChronoWork/issues/new?template=feature_request.yml) · [Contribute](CONTRIBUTING.md)
 
@@ -197,6 +198,10 @@ Things to know about this host:
 - Imported backups are validated and sanitized; links are restricted to `http(s)`; spreadsheet exports neutralize formulas.
 
 Found a vulnerability? Please report it privately, as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE): free to use, modify and share, including commercially. Contributions are accepted under the same license.
 
 <div align="center">
 
