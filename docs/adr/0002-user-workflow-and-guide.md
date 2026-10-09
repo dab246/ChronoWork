@@ -21,7 +21,10 @@ The app is built around a few product decisions that shape how it must be used. 
 
 ## User guide
 
-### 1. First-time setup (Settings, gear icon top right)
+### 1. First-time setup (Settings page: gear icon top right, or `#/settings`)
+
+Settings is a page of its own with one section per topic (Profile, Working hours, Reminder, Language, Report, GitHub, Data). Every change is saved as soon as a field is left; there is no Save button. Each section has its own link, e.g. `#/settings/reminder`.
+
 
 | Section | What to set | Why it matters |
 |---|---|---|
@@ -52,7 +55,7 @@ Use the **same task name** for work that spans several days so it merges into a 
 
 ### 2b. End-of-day reminder
 
-Settings → **End-of-day reminder** (on by default, 16:30). At that time, on a working day whose hours are not fully logged, ChronoWork shows a system notification, rings a "ding ding" chime and reads the message aloud (text-to-speech with the system voice of the interface language); the message also appears in the app. Clicking the notification opens today's log. It fires once a day, and is skipped when it is more than an hour late (e.g. the laptop was asleep).
+Settings → **Reminder** (`#/settings/reminder`, on by default, 16:30). At that time, on a working day whose hours are not fully logged, ChronoWork shows a system notification, rings a "ding ding" chime and reads the message aloud (text-to-speech with the system voice of the interface language); the message also appears in the app. Clicking the notification opens today's log. It fires once a day, and is skipped when it is more than an hour late (e.g. the laptop was asleep).
 
 - Click **Allow notifications** (or **Test now**) once so the browser may show system notifications. Without it, the reminder still appears in the app and is read aloud.
 - ChronoWork must be open, a background tab is enough. A static website cannot notify once its tab is closed; that would need a push server.

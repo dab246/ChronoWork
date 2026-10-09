@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Settings is a page instead of a dialog (`#/settings/<section>`): a section menu (Profile, Working hours, Reminder, Language, Report, GitHub, Data), one card per section, and every change saved as soon as a field is left. Each section lives in its own component under `src/components/settings/`, registered in `sections.ts`.
+- Tabs have their own URL (`#/daily`, `#/report`, `#/timesheet`, `#/calendar`, `#/performance`), so they can be bookmarked and the browser's Back button works.
 - Weekly report: a task's completion is now the one of its latest entry in the week instead of the lowest one, and a finished task has no gap reason or solution.
 - Timesheet rows merge task names that differ only by case or spacing, like the report already did.
 - Daily log: the day status switch only offers Office / WFH; leave and other statuses are set through **More statuses**, the Timesheet or the Attendance calendar.

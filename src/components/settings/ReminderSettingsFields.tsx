@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { BellRing, CheckCircle2, Info, Volume2 } from 'lucide-react';
-import type { ReminderSettings } from '../types';
-import { useI18n } from '../i18n';
-import { useFeedback } from '../ui/feedback';
-import { Switch } from '../ui/Switch';
-import { localeOf } from '../utils/dateUtils';
-import { useReminderMessage } from '../hooks/useDailyReminder';
-import { alertReminder, notificationState, requestNotificationPermission, type NotificationState } from '../services/reminderService';
+import type { ReminderSettings } from '../../types';
+import { useI18n } from '../../i18n';
+import { useFeedback } from '../../ui/feedback';
+import { Switch } from '../../ui/Switch';
+import { CommitField } from './fields';
+import { localeOf } from '../../utils/dateUtils';
+import { useReminderMessage } from '../../hooks/useDailyReminder';
+import { alertReminder, notificationState, requestNotificationPermission, type NotificationState } from '../../services/reminderService';
 
 interface ReminderSettingsFieldsProps {
   value: ReminderSettings;
@@ -66,7 +67,7 @@ export const ReminderSettingsFields: React.FC<ReminderSettingsFieldsProps> = ({ 
 
   return (
     <div className="space-y-3">
-      <Switch checked={value.enabled} onChange={(on) => set('enabled', on)} label={s.reminderEnabled} description={s.reminderHint} />
+      <Switch checked={value.enabled} onChange={(on) => set('enabled', on)} label={s.reminderEnabled} />
       <div className={`space-y-3 ${value.enabled ? '' : 'opacity-50 pointer-events-none'}`} aria-disabled={!value.enabled}>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
@@ -81,15 +82,14 @@ export const ReminderSettingsFields: React.FC<ReminderSettingsFieldsProps> = ({ 
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="field-label" htmlFor="set-reminder-message">{s.reminderMessage}</label>
-            <input
+            <CommitField
               id="set-reminder-message"
               type="text"
               maxLength={200}
+              label={s.reminderMessage}
               value={value.message ?? ''}
               placeholder={t.reminder.defaultMessage}
-              onChange={(e) => set('message', e.target.value)}
-              className="input-field"
+              onCommit={(text) => set('message', text.trim() || undefined)}
             />
           </div>
         </div>

@@ -11,7 +11,8 @@ import { FeedbackProvider, useFeedback } from './ui/feedback';
 import { usePersistentState, useWorkspaceData, type WorkspaceData } from './hooks/useWorkspaceData';
 import { useDailyReminder } from './hooks/useDailyReminder';
 
-import { Header, ActiveTab } from './components/Header';
+import { Header } from './components/Header';
+import { useHashRoute, type ActiveTab } from './routing';
 import { DayLogView } from './components/DayLogView';
 import { WeeklyReportView } from './components/WeeklyReportView';
 import { WeeklyTimesheetView } from './components/WeeklyTimesheetView';
@@ -19,7 +20,7 @@ import { CalendarLeaveView } from './components/CalendarLeaveView';
 import { PerformanceView } from './components/PerformanceView';
 import { ManualEntryModal } from './components/ManualEntryModal';
 import { DayStatusModal } from './components/DayStatusModal';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsPage } from './components/settings/SettingsPage';
 
 export default function App({ onReady }: { onReady?: () => void }) {
   const [settings, setSettings] = usePersistentState<UserSettings>(getStoredSettings, saveStoredSettings);
@@ -149,18 +150,17 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
   const { notify } = useFeedback();
   const data = useWorkspaceData(setSettings);
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
+  const [route, navigate] = useHashRoute();
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false, entry: null, template: null, date: formatDateIso(new Date()) });
   const [dayStatusDate, setDayStatusDate] = useState<string | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useDailyReminder({
     settings,
     entries: data.entries,
     dayLogs: data.dayLogs,
     onOpen: () => {
-      setActiveTab('daily');
+      navigate({ page: 'daily' });
       setCurrentDate(new Date());
     },
   });
@@ -181,10 +181,9 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
   return (
     <div className="app-canvas min-h-screen text-slate-900 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-950">
       <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        route={route}
+        onNavigate={navigate}
         onOpenNewTask={() => openNewTaskModal()}
-        onOpenSettings={() => setIsSettingsOpen(true)}
         onQuickExport={handleQuickExport}
         settings={settings}
         onSelectLanguage={(language) => setSettings((prev) => ({ ...prev, language }))}
@@ -193,23 +192,27 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={activeTab}
+            key={route.page}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
           >
-            <TabContent
-              tab={activeTab}
-              data={data}
-              settings={settings}
-              currentDate={currentDate}
-              onChangeDate={setCurrentDate}
-              onNewTask={openNewTaskModal}
-              onEditTask={openEditTaskModal}
-              onContinueTask={openContinueTaskModal}
-              onOpenDayStatus={setDayStatusDate}
-            />
+            {route.page === 'settings' ? (
+              <SettingsPage section={route.section} settings={settings} setSettings={setSettings} onRefreshData={data.refresh} />
+            ) : (
+              <TabContent
+                tab={route.page}
+                data={data}
+                settings={settings}
+                currentDate={currentDate}
+                onChangeDate={setCurrentDate}
+                onNewTask={openNewTaskModal}
+                onEditTask={openEditTaskModal}
+                onContinueTask={openContinueTaskModal}
+                onOpenDayStatus={setDayStatusDate}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -241,14 +244,6 @@ const Workspace: React.FC<WorkspaceProps> = ({ settings, setSettings }) => {
       />
 
       <DayStatusDialog date={dayStatusDate} data={data} settings={settings} onClose={() => setDayStatusDate(null)} />
-
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onSaveSettings={setSettings}
-        onRefreshData={data.refresh}
-      />
     </div>
   );
 };

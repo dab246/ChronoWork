@@ -5,13 +5,12 @@ import type { Language, UserSettings } from '../types';
 import { useI18n } from '../i18n';
 import { LanguageMenu } from '../ui/LanguageMenu';
 
-export type ActiveTab = 'daily' | 'report' | 'timesheet' | 'calendar' | 'performance';
+import type { ActiveTab, Route } from '../routing';
 
 interface HeaderProps {
-  activeTab: ActiveTab;
-  setActiveTab: (tab: ActiveTab) => void;
+  route: Route;
+  onNavigate: (route: Route) => void;
   onOpenNewTask: () => void;
-  onOpenSettings: () => void;
   onQuickExport: () => void;
   settings: UserSettings;
   onSelectLanguage: (lang: Language) => void;
@@ -26,10 +25,9 @@ const TABS: { id: ActiveTab; icon: React.ComponentType<{ className?: string }> }
 ];
 
 export const Header: React.FC<HeaderProps> = ({
-  activeTab,
-  setActiveTab,
+  route,
+  onNavigate,
   onOpenNewTask,
-  onOpenSettings,
   onQuickExport,
   settings,
   onSelectLanguage,
@@ -37,14 +35,14 @@ export const Header: React.FC<HeaderProps> = ({
   const { t } = useI18n();
 
   const tabButton = (id: ActiveTab, Icon: React.ComponentType<{ className?: string }>, layoutId: string, compact = false) => {
-    const active = activeTab === id;
+    const active = route.page === id;
     return (
       <button
         key={id}
         type="button"
         role="tab"
         aria-selected={active}
-        onClick={() => setActiveTab(id)}
+        onClick={() => onNavigate({ page: id })}
         className={`relative flex items-center gap-2 whitespace-nowrap rounded-full transition-colors ${
           compact ? 'px-3 py-1.5 text-xs' : 'px-3.5 py-1.5 text-[13px]'
         } font-semibold ${active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900'}`}
@@ -96,7 +94,14 @@ export const Header: React.FC<HeaderProps> = ({
               <span>{t.header.addTask}</span>
             </button>
 
-            <button type="button" onClick={onOpenSettings} title={t.header.settings} aria-label={t.header.settings} className="icon-btn">
+            <button
+              type="button"
+              onClick={() => onNavigate({ page: 'settings', section: route.page === 'settings' ? route.section : 'profile' })}
+              title={t.header.settings}
+              aria-label={t.header.settings}
+              aria-current={route.page === 'settings' ? 'page' : undefined}
+              className={`icon-btn ${route.page === 'settings' ? 'bg-indigo-50 text-indigo-700' : ''}`}
+            >
               <Settings className="w-5 h-5" />
             </button>
           </div>
