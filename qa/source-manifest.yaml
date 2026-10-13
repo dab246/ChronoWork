@@ -8,14 +8,14 @@ sources:
   - id: user-workflow
     type: requirement
     revision: "ADR-0002"
-    status: UNVERIFIED
+    status: UNVERIFIED # SIGN-OFF 1: VERIFIED once you checked rules 1-6 match how the app behaves
     path: ../docs/adr/0002-user-workflow-and-guide.md
     sha256: 4371259a043a208af5327c209cfe7222b755e2337293fdc7527fd629b9245d3c
     notes: Product rules 1-6 (log daily, day status, one row per task, local data, template exports, cumulative progress)
   - id: security-scope
     type: policy
     revision: "SECURITY.md"
-    status: UNVERIFIED
+    status: UNVERIFIED # SIGN-OFF 2: VERIFIED once you checked the security scope is current
     path: ../SECURITY.md
     sha256: fa5b34e773e3a4b3206a2f57c2667d46d5e7ecc4879326c1ee52127ed43d5170
     notes: XSS through task data / backups / exports, CSP, formula injection, GitHub token leaks
@@ -23,6 +23,8 @@ assumptions:
   - id: single-browser-profile
     statement: Users accept that data lives in one browser profile and move it with JSON backups (ADR-0002 rule 4).
     owner: dab246
-    resolved: false
+    resolved: false # SIGN-OFF 3: true if you accept this assumption
 approval:
-  status: PENDING
+  status: PENDING # SIGN-OFF 4: APPROVED, then uncomment the two lines below
+  # approvedBy: dab246
+  # approvedAt: "YYYY-MM-DD"

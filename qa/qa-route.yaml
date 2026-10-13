@@ -11,6 +11,11 @@ gaps:
   - No automated browser E2E lane yet (e.g. Playwright); UI flows are covered by the manual E2E cases.
   - Exports are checked by structure in unit tests; opening them in Excel / LibreOffice is manual.
 intake:
-  status: PENDING
+  status: PENDING # SIGN-OFF 5: ACCEPTED if this scope, risk and these gaps are right
+  # decidedBy: dab246
+  # decidedAt: "YYYY-MM-DD"
 costValue:
-  decision: PENDING
+  decision: PENDING # SIGN-OFF 6: GO if manual E2E + unit tests are worth it for this release
+  # decidedBy: dab246
+  # decidedAt: "YYYY-MM-DD"
+  # rationale: Manual E2E covers the browser-only flows until a Playwright lane exists.
