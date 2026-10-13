@@ -1,11 +1,47 @@
 # Manual E2E results, recorded by the person who ran each case on the deployed
-# app (https://dab246.github.io/ChronoWork/). Example entry:
-#   - tcId: TC-E2E-001
-#     status: PASS            # PASS | FAIL | BLOCKED | NOT_RUN
-#     tester: dab246
-#     executedAt: "2026-10-14T09:00:00Z"
-#     commitSha: <commit deployed when tested>
-#     environment: github-pages
-#     evidence: [notes or screenshot links]
+# app (https://dab246.github.io/ChronoWork/). Steps and expected results are in
+# test-packs/chronowork.md.
+#
+# SIGN-OFF 7: run each case, then uncomment its entry and set:
+#   status      PASS | FAIL | BLOCKED (a FAIL or BLOCKED keeps the gate red)
+#   executedAt  when you ran it, ISO 8601 (e.g. "2026-10-14T09:30:00Z")
+#   evidence    optional notes or screenshot links
+# commitSha is the commit deployed to GitHub Pages when this branch was made.
 schemaVersion: 1
+# When you uncomment the first entry, delete the "[]" on the next line.
 results: []
+  # - tcId: TC-E2E-001 # Log a day end to end
+  #   status: PASS
+  #   tester: dab246
+  #   executedAt: "YYYY-MM-DDTHH:MM:SSZ"
+  #   commitSha: 3b85b8754bf2a4eb8b9cfaeae6b28cec5fa09627
+  #   environment: github-pages
+  #   evidence: []
+  # - tcId: TC-E2E-002 # End-of-day reminder in the browser
+  #   status: PASS
+  #   tester: dab246
+  #   executedAt: "YYYY-MM-DDTHH:MM:SSZ"
+  #   commitSha: 3b85b8754bf2a4eb8b9cfaeae6b28cec5fa09627
+  #   environment: github-pages
+  #   evidence: []
+  # - tcId: TC-E2E-003 # Weekly report exports open in office suites
+  #   status: PASS
+  #   tester: dab246
+  #   executedAt: "YYYY-MM-DDTHH:MM:SSZ"
+  #   commitSha: 3b85b8754bf2a4eb8b9cfaeae6b28cec5fa09627
+  #   environment: github-pages
+  #   evidence: []
+  # - tcId: TC-E2E-004 # Continue a task by drag and drop
+  #   status: PASS
+  #   tester: dab246
+  #   executedAt: "YYYY-MM-DDTHH:MM:SSZ"
+  #   commitSha: 3b85b8754bf2a4eb8b9cfaeae6b28cec5fa09627
+  #   environment: github-pages
+  #   evidence: []
+  # - tcId: TC-E2E-005 # Move data to another browser with a backup
+  #   status: PASS
+  #   tester: dab246
+  #   executedAt: "YYYY-MM-DDTHH:MM:SSZ"
+  #   commitSha: 3b85b8754bf2a4eb8b9cfaeae6b28cec5fa09627
+  #   environment: github-pages
+  #   evidence: []
