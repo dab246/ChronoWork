@@ -1,0 +1,16 @@
+# S0 route record, kept by the QA Lead. Update it when the kind of change or
+# the risk changes; intake and cost/value are decisions, not defaults.
+schemaVersion: 1
+routeId: chronowork-main
+path: B
+owner: dab246
+scope: Daily log, timesheet, weekly report exports, reminder, backup / restore
+risk: medium
+lanes: [unit, ui]
+gaps:
+  - No automated browser E2E lane yet (e.g. Playwright); UI flows are covered by the manual E2E cases.
+  - Exports are checked by structure in unit tests; opening them in Excel / LibreOffice is manual.
+intake:
+  status: PENDING
+costValue:
+  decision: PENDING
