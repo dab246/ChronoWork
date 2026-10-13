@@ -1,0 +1,37 @@
+# QA Agent Kit setup for ChronoWork: https://github.com/dab246/qa-agent-kit
+# ChronoWork is browser-only (no server, no accounts), so there is no
+# permission lane. The kit traces the product rules (Phase 0 sources) to the
+# Vitest suite and the manual E2E checks, and gates every pull request.
+schemaVersion: 1
+
+project:
+  id: chronowork
+  environment: ci
+
+safety:
+  allowedEnvironments: [local, ci]
+
+sources:
+  manifest: source-manifest.yaml
+
+routing:
+  route: qa-route.yaml
+  paths:
+    A: { description: "Logic, docs or tooling only: unit lane", lanes: [unit] }
+    B: { description: "User-visible change: unit lane and manual E2E", lanes: [unit, ui] }
+
+testPacks:
+  files: [test-packs/chronowork.md]
+  manualResults: manual-results.yaml
+
+# Written by the CI step that runs Vitest with the JUnit reporter.
+lanes:
+  unit:
+    junit: [reports/unit-junit.xml]
+    required: true
+
+evidence:
+  directory: artifacts
+
+releaseGate:
+  policy: release-policy.yaml

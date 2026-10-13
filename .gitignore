@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# QA Agent Kit: run artifacts, JUnit reports and the kit checkout in CI
+qa/artifacts/
+qa/reports/
+.qa-agent-kit/

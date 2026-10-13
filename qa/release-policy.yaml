@@ -1,0 +1,19 @@
+schemaVersion: 1
+policyVersion: "2026.10-1"
+blockOnStatuses: [FAIL, BLOCKED, INCONCLUSIVE, SKIPPED]
+optionalFailures: warn
+criticalAlwaysBlocks: true
+requireEvidence: true
+requireSourceApproval: true
+requireCleanupSuccess: true
+requireResultsForCommit: true
+lifecycle:
+  requireIntakeAccepted: true
+  requireCostValueGo: true
+  requireManualE2EPass: true
+lanes:
+  # A lane that silently ran (almost) nothing must not pass: the suite has 100 tests today.
+  unit:
+    required: true
+    minTests: 80
+exceptions: []

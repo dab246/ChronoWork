@@ -1,0 +1,11 @@
+# Manual E2E results, recorded by the person who ran each case on the deployed
+# app (https://dab246.github.io/ChronoWork/). Example entry:
+#   - tcId: TC-E2E-001
+#     status: PASS            # PASS | FAIL | BLOCKED | NOT_RUN
+#     tester: dab246
+#     executedAt: "2026-10-14T09:00:00Z"
+#     commitSha: <commit deployed when tested>
+#     environment: github-pages
+#     evidence: [notes or screenshot links]
+schemaVersion: 1
+results: []

@@ -1,0 +1,74 @@
+name: QA gate
+
+# Release gate of the QA Agent Kit (https://github.com/dab246/qa-agent-kit):
+# traces ADR-0002 / SECURITY.md through the test pack in qa/ to the Vitest
+# results and the manual E2E sign-offs, then decides GO / NO_GO.
+# Advisory for now: make "QA gate / release gate" a required check once the
+# sign-offs in qa/README.md are done.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned kit commit: update deliberately, like any other dependency.
+  QA_AGENT_KIT_SHA: 9e8dc112c8a1d27b07c4cdb3b5c471f9f3f9bcb0 # main, 2026-10-13
+
+jobs:
+  gate:
+    name: release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The exact PR head, with history for the change-impact diff.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install dependencies (locked)
+        run: bun install --frozen-lockfile
+
+      - name: Unit tests (JUnit report for the gate)
+        # The gate judges failures; it still needs the report when tests fail.
+        continue-on-error: true
+        run: bunx vitest run --reporter=default --reporter=junit --outputFile.junit=qa/reports/unit-junit.xml
+
+      - name: Check out the QA Agent Kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dab246/qa-agent-kit
+          ref: ${{ env.QA_AGENT_KIT_SHA }}
+          path: .qa-agent-kit
+          persist-credentials: false
+
+      - name: Build the kit (locked, no install scripts)
+        working-directory: .qa-agent-kit
+        run: npm ci --ignore-scripts && npm run build
+
+      - name: Release gate
+        run: node .qa-agent-kit/dist/cli/main.js run --config qa/qa-agent-kit.yaml --ci github --summary
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qa-gate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: qa/artifacts
+          retention-days: 14
